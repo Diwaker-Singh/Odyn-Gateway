@@ -1,23 +1,22 @@
 # Cloud acceptance status
 
-**As of 11 October 2026.** The latest deployment and acceptance observations
-recorded here were captured by 07:24 UTC; the cost query was captured at 04:35
-UTC. This document refresh did not make a new Azure query. It is an operational
-summary, not a substitute for timestamped evidence records, which are excluded
-from the public repository. Cloud acceptance is **partial**; do not describe
-the assessment as fully cloud-accepted.
+**As of 11 October 2026 11:06 UTC.** Deployment, browser smoke and telemetry
+checks were refreshed through 11:06 UTC; the cost query remains the 04:35 UTC
+query. This is an operational summary, not a substitute for timestamped raw
+evidence, which is excluded from the public repository. Cloud acceptance is
+**partial**; do not describe the assessment as fully cloud-accepted.
 
 ## Demonstrated
 
 | Area | Current evidence | Scope and limit |
 | --- | --- | --- |
-| Deployment | Azure revision `ca-odyn-gateway-demo10--0000007` was reported healthy, with two running replicas and 100% of traffic. Gateway and collector use digest-pinned images; deployed gateway source matched the workspace application source at the check. | Read-only health and image verification do not prove drift-free Terraform planning or teardown. |
+| Deployment | Azure revision `ca-odyn-gateway-demo10--reasoningoff8cb4bd6` is provisioned with two replicas. The gateway runs `acrodyngatewaydemo10.azurecr.io/odyn-gateway@sha256:31b36049269ceb8aca650539f64e4da259688e4abf5c4d88214bcd3efecdfb13`; the collector image was not changed. | The gateway image update used an image-only Container App update because the Terraform plan also proposed unrelated Key Vault purge-protection drift. A clean full Terraform plan and teardown are still unproven. |
 | Identity | Human Entra PKCE and machine client-credentials demonstrations succeeded. An unauthenticated request was rejected with 401. | A complete JWT negative-case matrix and revocation/refresh behavior have not been demonstrated against the deployment. |
-| Live provider | One bounded authenticated request through Front Door returned HTTP 200 from the live OpenRouter path. A correlated Application Insights record showed the gateway request and provider dependency succeeded. | One request does not establish reliability under repeated traffic; provider billed cost was not queried. |
+| Live provider | At 11:05 UTC, one bounded authenticated request from the hosted UI through Front Door returned HTTP 200 and visible text. Application Insights recorded the gateway request and both dependencies with HTTP 200. | The preceding intermittent 502 was traced to `no_text_token_limit`: the model's hidden reasoning used the UI's 128-token cap before producing visible text. The gateway now sends `reasoning: {"enabled": false}` for chat completions; the bounded retest succeeded once. This does not establish reliability under repeated traffic or provider billed cost. |
 | Alerting | A controlled authentication alert fired; Azure recorded an unsuppressed action-group invocation. The configured receiver was enrolled and received Azure's sample notification. | This demonstrates one alert path, not firing and recovery of every rule. |
 | Telemetry | Seven workbook KQL queries were run against deployed Application Insights and each returned rows. Request/dependency correlation was observed for one successful live request. | The corrected workbook source was not applied to Azure at the last check; APIM/Front Door correlation remains incomplete. |
 | Distributed throttling | A bounded run on revision 4 sent 225 requests to two healthy replicas in **stub mode**: 112 responses were 429, no 503s, and no matching table-conflict error lines were found. | This is not live inference throughput and does not prove global budget or cross-replica accounting correctness. It predates the current revision. |
-| Local release and CI | The latest local run recorded 222 passing gateway tests, 9/9 policy checks, valid Terraform configuration in all four roots, 4 hosted UI tests, and 0 npm audit vulnerabilities. The hosted UI Pages workflow [38133174589](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133174589) passed for commit `7c17b0498cdbd369a8a2162da2ab9e6316f1a860`; the earlier image-inclusive release report recorded 21/21 checks. | The Pages workflow validates and publishes the static UI; it is not the full gateway release workflow. Local checks and CI do not establish cloud behavior. Evidence files remain local and are not part of the public repository. |
+| Local release and CI | The latest local run recorded 223 passing gateway tests, 9/9 policy checks, valid Terraform configuration in all four roots, 4 hosted UI tests, and 0 npm audit vulnerabilities. Exact-fix-commit CI [38133877561](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133877561) passed for `8cb4bd6d5c80764c878021baac00b6e578ffaa0c`. | The separate Pages workflow validates and publishes the static UI. Local checks and CI do not establish cloud behavior. Evidence files remain local and are not part of the public repository. |
 
 ## Still open
 
@@ -41,8 +40,9 @@ development. The Entra SPA redirect is registered. The Pages HTML and runtime
 config both return successfully, and APIM returned HTTP 200 to an unauthenticated
 CORS preflight from the exact Pages origin, allowing POST with only
 `authorization` and `content-type`. An authenticated browser chat smoke test
-remains to be recorded. The Pages workflow passed for the current deployed UI
-commit.
+now succeeds through Front Door and the live provider. The latest browser
+request asked for a short fixed response and returned visible text within the
+128-token output cap.
 
 See Microsoft's [MSAL browser overview](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/about-msal-browser),
 [authorization code with PKCE guidance](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow),

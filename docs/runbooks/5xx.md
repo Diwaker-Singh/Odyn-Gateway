@@ -6,6 +6,11 @@
    notes.
 3. Separate gateway 502/503/504 responses, shared-store errors, upstream
    failures and readiness/revision failures.
+   For a 502 with the allowlisted reason `no_text_token_limit`, check whether
+   model reasoning consumed the configured output cap before visible text was
+   produced. The gateway disables reasoning for chat completions; verify the
+   active revision uses the expected image digest before changing token limits.
+   Do not log or expose reasoning content.
 4. Pause synthetic traffic when the authoritative store is unhealthy. Do not
    automatically replay a provider request if the provider may already have
    processed it.

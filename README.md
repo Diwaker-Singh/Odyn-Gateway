@@ -40,6 +40,8 @@ Key design choices:
   request is sent.
 - Fixed HTTPS provider destination, bounded request/response sizes and
   deadlines, redirects disabled, and safe error/telemetry fields.
+- Hidden provider reasoning is disabled for chat completions so the UI's
+  bounded token budget remains available for visible answer text.
 - A deterministic stub is the default. Live provider mode requires explicit
   configuration and a secret supplied by the deployment secret store.
 
@@ -49,24 +51,26 @@ runbooks](docs/runbooks/).
 
 ## Verification status
 
-The current Azure deployment is live and the latest recorded health check found
-revision 7 healthy with two replicas. Human and machine Entra sign-in have both
-been demonstrated, and a bounded live OpenRouter request returned HTTP 200.
-One controlled authentication alert reached Azure Monitor and its action group;
-one two-replica load run passed in stub mode. These checks demonstrate working
-paths, not full cloud acceptance. The remaining checks and their limits are in
-[cloud acceptance status](docs/cloud-acceptance-status.md).
+The current Azure deployment is live on revision
+`ca-odyn-gateway-demo10--reasoningoff8cb4bd6`, with two replicas and the gateway
+image pinned to its verified ACR digest. After fixing a token-budget failure,
+an authenticated request from the hosted UI returned HTTP 200 through Front
+Door and the provider dependency also returned HTTP 200. Human and machine
+Entra sign-in have both been demonstrated. One controlled authentication alert
+reached Azure Monitor and its action group; one two-replica load run passed in
+stub mode. These checks demonstrate working paths, not full cloud acceptance.
+The remaining checks and their limits are in [cloud acceptance
+status](docs/cloud-acceptance-status.md).
 
-The latest local validation run recorded 222 passing gateway tests, 9/9 policy
+The latest local validation run recorded 223 passing gateway tests, 9/9 policy
 checks, valid Terraform configuration in all 4 roots, and 4 passing hosted UI
 configuration tests. The hosted UI dependency audit found 0 vulnerabilities.
-GitHub Pages build and deployment passed for commit
-`7c17b0498cdbd369a8a2162da2ab9e6316f1a860`: [workflow run
-38133174589](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133174589).
-The earlier image-inclusive release report recorded 21/21 checks. Cloud and
-local evidence artifacts are kept outside the public source tree; the status
-document labels what was observed and what is still unproven. Record a new demo
-video after the authenticated hosted chat smoke test.
+GitHub Actions CI passed for the fix commit
+`8cb4bd6d5c80764c878021baac00b6e578ffaa0c`: [workflow run
+38133877561](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133877561).
+The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
+evidence artifacts are kept outside the public source tree; the status document
+labels what was observed and what is still unproven.
 
 ## Local development
 
@@ -100,9 +104,12 @@ plans, real variable files, credentials, or local reports.
 ## Chat demo
 
 The configurable static browser UI is hosted at
-https://diwaker-singh.github.io/Odyn-Gateway/ and uses the configured human
-Entra client to send bounded requests to the gateway. A local Python proxy UI
-is also available for development; start it with:
+[https://diwaker-singh.github.io/Odyn-Gateway/](https://diwaker-singh.github.io/Odyn-Gateway/)
+and uses the configured human Entra client to send bounded requests to the
+gateway. Watch the [redacted hosted-chat demo on Google Drive](https://drive.google.com/file/d/1j6XgajrV9EkQ4yiZiX0eGQ0NpG35c9hD/view?usp=sharing).
+The recording blurs Microsoft account details, connection-setting values and
+browser address text. A local Python proxy UI is also available for development;
+start it with:
 
 ```sh
 .venv/bin/python scripts/local_chat_ui.py
@@ -111,11 +118,11 @@ is also available for development; start it with:
 Configure the client using the steps in [identity setup](docs/identity-setup.md)
 and follow the [local demo guide](docs/local-chat-ui.md). It binds to
 `127.0.0.1:8400`; the access token remains in the local Python process. The
-hosted SPA configuration, local preview, and security boundaries are described
+hosted SPA configuration, local preview and security boundaries are described
 in the [hosted chat UI guide](docs/hosted-chat-ui.md). The Entra redirect and
-exact-origin APIM preflight are configured; the authenticated browser-to-chat
-path should be smoke-tested before recording a new end-to-end demo. Hosting the
-static files does not expose the OpenRouter key.
+exact-origin APIM preflight are configured, and the authenticated browser-to-chat
+path has been smoke-tested against the live provider. Hosting the static files
+does not expose the OpenRouter key.
 
 ## Deployment and secrets
 

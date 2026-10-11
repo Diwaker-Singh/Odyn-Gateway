@@ -67,6 +67,8 @@ existing Python loopback UI remains available for a local proxy flow:
 ## Safety and operation
 
 - The UI asks for one bounded request at a time, with a 128-token response cap.
+- The gateway disables hidden model reasoning for these chat requests so the
+  token budget remains available for visible answer text.
 - Chat history is held in page memory only and is cleared on reload or sign-out.
 - The app asks for a delegated API token only; it does not request Graph scopes.
 - A sign-in alone should not make every tenant account eligible for provider
