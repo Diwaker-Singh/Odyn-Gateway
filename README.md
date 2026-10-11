@@ -45,6 +45,9 @@ Key design choices:
 - A deterministic stub is the default. Live provider mode requires explicit
   configuration and a secret supplied by the deployment secret store.
 
+For a short tour of the implementation, failure-oriented tests, and lessons
+from provider and cloud integration, see [engineering decisions and verification](docs/engineering.md).
+
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 [provider portability](docs/provider-portability.md), and the [operational
 runbooks](docs/runbooks/).
@@ -62,12 +65,12 @@ stub mode. These checks demonstrate working paths, not full cloud acceptance.
 The remaining checks and their limits are in [cloud acceptance
 status](docs/cloud-acceptance-status.md).
 
-The latest local validation run recorded 223 passing gateway tests, 9/9 policy
-checks, valid Terraform configuration in all 4 roots, and 4 passing hosted UI
-configuration tests. The hosted UI dependency audit found 0 vulnerabilities.
-GitHub Actions CI passed for the fix commit
-`8cb4bd6d5c80764c878021baac00b6e578ffaa0c`: [workflow run
-38133877561](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133877561).
+A fresh local review on 11 October 2026 passed 224 gateway tests, Ruff,
+mypy, repository policy checks, 5 hosted UI configuration tests, and the hosted
+UI production build. Terraform configuration in all 4 roots passed the earlier
+release validation. GitHub Actions CI passed for source commit
+`fcb13361fc36736a5f3cd58267c70b77a9c4fd49`: [workflow run
+38135709389](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709389).
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
 evidence artifacts are kept outside the public source tree; the status document
 labels what was observed and what is still unproven.
@@ -143,17 +146,25 @@ source, command-line arguments, logs, screenshots, or chat.
 ## Repository layout
 
 ```text
-app/src/gateway/       gateway domain, HTTP adapter and cloud/provider adapters
-app/tests/             unit, integration and contract tests
-infra/modules/         shared Terraform contract and cloud adapters
-infra/envs/dev/        example Azure environment composition
-infra/bootstrap/       remote-state bootstrap configuration
-infra/telemetry/       collector image/configuration and workbook
-scripts/               local checks, demo and guarded operator tooling
-loadtest/              bounded local load scenarios
-local-ui/              browser UI assets
-docs/                  architecture, security, setup and runbooks
+app/src/gateway/        gateway policy, HTTP boundary, storage/provider adapters
+app/tests/              unit, integration and contract suites
+hosted-ui/              configurable Entra SPA, client tests and Pages build
+local-ui/               assets for the loopback Python proxy demo
+infra/modules/          shared Terraform interface; Azure and AWS adapters
+infra/envs/dev/         Azure environment composition and example variables
+infra/bootstrap/        remote-state storage bootstrap
+infra/artifacts/        container registry infrastructure
+infra/telemetry/        collector image/configuration and workbook
+scripts/                local validation, identity demos and operator tooling
+loadtest/               bounded local stub load scenario
+.github/workflows/      application CI and hosted UI deployment
+docs/                  architecture, engineering decisions, setup and runbooks
 ```
+
+The two UI directories serve different purposes: `hosted-ui/` is the static
+SPA, while `local-ui/` is served by the loopback Python proxy. Runtime code
+lives under `app/src/`; tests and operator scripts are kept outside the runtime
+package. Private configuration and generated reports remain ignored.
 
 The service is designed for bounded workloads. Capacity, shared
 partition throughput, provider availability, per-process breaker state, token

@@ -35,7 +35,7 @@ flowchart LR
    then checks the delegated scope or application role. Caller-supplied
    identity headers are ignored.
 4. Schema validation enforces the model allowlist and input/output bounds.
-   Admission atomically reserves rate, concurrency and spend capacity before
+   Admission atomically reserves rate, token and spend capacity before
    any provider call.
 5. The provider adapter sends one bounded request to a fixed HTTPS host. It
    follows no redirects and retries only when transport proves the request was
@@ -81,3 +81,11 @@ tests. Live mode uses a deployment-provided secret reference and explicit
 model/pricing configuration. Cloud network policy, capacity, availability and
 security guarantees must be validated for each deployment; configuration
 alone does not prove effective enforcement.
+
+The current runtime has no explicit in-flight request semaphore. Rate limits
+and bounded deadlines reduce exposure but do not substitute for a concurrency
+limit. A production rollout should define a measured in-flight cap, durable
+reservation retention/reconciliation, and partition capacity before raising
+traffic limits. Terminal reservation rows are retained for idempotence; no
+automated retention worker is implemented. Cleanup must preserve the retry and
+settlement window and must never refund an outcome that may have been billed.
