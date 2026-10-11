@@ -17,7 +17,7 @@ the assessment as fully cloud-accepted.
 | Alerting | A controlled authentication alert fired; Azure recorded an unsuppressed action-group invocation. The configured receiver was enrolled and received Azure's sample notification. | This demonstrates one alert path, not firing and recovery of every rule. |
 | Telemetry | Seven workbook KQL queries were run against deployed Application Insights and each returned rows. Request/dependency correlation was observed for one successful live request. | The corrected workbook source was not applied to Azure at the last check; APIM/Front Door correlation remains incomplete. |
 | Distributed throttling | A bounded run on revision 4 sent 225 requests to two healthy replicas in **stub mode**: 112 responses were 429, no 503s, and no matching table-conflict error lines were found. | This is not live inference throughput and does not prove global budget or cross-replica accounting correctness. It predates the current revision. |
-| Local release and CI | The most recent local revalidation recorded 221 passing tests and 18 release checks; the image-inclusive report recorded 21/21 checks. GitHub Actions run [38129315335](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38129315335) passed for commit `0f67ff36c9c24d4548de5b52f0ff4e9ede3b2b6a`. | The CI run is for that commit, before the current documentation edits. Local checks and CI do not establish cloud behavior. Evidence files remain local and are not part of the public repository. |
+| Local release and CI | The latest local run recorded 222 passing gateway tests, 9/9 policy checks, valid Terraform configuration in all four roots, 4 hosted UI tests, and 0 npm audit vulnerabilities. The hosted UI Pages workflow [38133174589](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133174589) passed for commit `7c17b0498cdbd369a8a2162da2ab9e6316f1a860`; the earlier image-inclusive release report recorded 21/21 checks. | The Pages workflow validates and publishes the static UI; it is not the full gateway release workflow. Local checks and CI do not establish cloud behavior. Evidence files remain local and are not part of the public repository. |
 
 ## Still open
 
@@ -37,11 +37,12 @@ Entra PKCE flow, and local preview are documented in
 [hosted-chat-ui.md](hosted-chat-ui.md). The public site contains only public
 client identifiers and the gateway URL; the OpenRouter key remains in Key
 Vault. The Python loopback proxy at `127.0.0.1:8400` remains available for local
-development. The Entra SPA redirect is registered. APIM returned HTTP 200 to
-an unauthenticated CORS preflight from the exact Pages origin, allowing POST
-with only `authorization` and `content-type`; an authenticated browser chat
-smoke test remains to be recorded. GitHub Pages deployment is run by the
-repository Actions workflow after the static UI changes reach `main`.
+development. The Entra SPA redirect is registered. The Pages HTML and runtime
+config both return successfully, and APIM returned HTTP 200 to an unauthenticated
+CORS preflight from the exact Pages origin, allowing POST with only
+`authorization` and `content-type`. An authenticated browser chat smoke test
+remains to be recorded. The Pages workflow passed for the current deployed UI
+commit.
 
 See Microsoft's [MSAL browser overview](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/about-msal-browser),
 [authorization code with PKCE guidance](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow),

@@ -57,14 +57,16 @@ one two-replica load run passed in stub mode. These checks demonstrate working
 paths, not full cloud acceptance. The remaining checks and their limits are in
 [cloud acceptance status](docs/cloud-acceptance-status.md).
 
-The latest recorded gateway revalidation before the hosted UI changes recorded
-221 passing tests and 18 release checks; the image-inclusive report recorded
-21/21 checks. The hosted UI currently has 4 passing configuration tests. GitHub Actions passed for
-commit `0f67ff36c9c24d4548de5b52f0ff4e9ede3b2b6a` at the time of the last
-verification: [CI run 38129315335](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38129315335).
-Cloud and local evidence artifacts are kept outside the public source tree; the
-status document labels what was observed and what is still unproven. A new demo
-video will be recorded after the hosted sign-in UI is ready.
+The latest local validation run recorded 222 passing gateway tests, 9/9 policy
+checks, valid Terraform configuration in all 4 roots, and 4 passing hosted UI
+configuration tests. The hosted UI dependency audit found 0 vulnerabilities.
+GitHub Pages build and deployment passed for commit
+`7c17b0498cdbd369a8a2162da2ab9e6316f1a860`: [workflow run
+38133174589](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38133174589).
+The earlier image-inclusive release report recorded 21/21 checks. Cloud and
+local evidence artifacts are kept outside the public source tree; the status
+document labels what was observed and what is still unproven. Record a new demo
+video after the authenticated hosted chat smoke test.
 
 ## Local development
 
