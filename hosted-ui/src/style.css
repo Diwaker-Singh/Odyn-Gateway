@@ -41,6 +41,10 @@ textarea { display: block; width: 100%; min-height: 52px; max-height: 180px; res
 .composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #f2f4f7; }
 .hint, .feedback { font-size: 12px; }
 .feedback { min-height: 18px; margin: 9px 4px 0; }
+.site-footer { display: flex; justify-content: space-between; gap: 12px; padding: 16px 4px 0; color: #667085; font-size: 12px; }
+.site-footer nav { display: flex; gap: 16px; }
+.site-footer a { color: #175cd3; text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }
 .hidden, .sr-only { display: none !important; }
 @media (max-width: 560px) {
   .shell { width: min(100% - 22px, 900px); padding-top: 15px; }
@@ -50,4 +54,5 @@ textarea { display: block; width: 100%; min-height: 52px; max-height: 180px; res
   #settings-form { grid-template-columns: 1fr; }
   .conversation { min-height: 48vh; padding: 24px 2px; }
   .message { max-width: 90%; }
+  .site-footer { flex-direction: column; }
 }

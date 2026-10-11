@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateConnectionConfig } from "../src/config.js";
+import { MAX_RESPONSE_TOKENS } from "../src/limits.js";
 
 const valid = {
   tenant_id: "11111111-1111-4111-8111-111111111111",
@@ -8,6 +9,10 @@ const valid = {
   scope: "api://33333333-3333-4333-8333-333333333333/chat.invoke",
   gateway_url: "https://gateway.example/v1/chat",
 };
+
+test("demo UI uses a bounded but conversational response limit", () => {
+  assert.equal(MAX_RESPONSE_TOKENS, 512);
+});
 
 test("accepts a tenant-scoped Entra client and HTTPS chat endpoint", () => {
   assert.deepEqual(validateConnectionConfig(valid), valid);

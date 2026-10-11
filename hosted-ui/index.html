@@ -27,7 +27,7 @@
 
       <section class="notice" aria-label="Live demo notice">
         <strong>Live provider</strong>
-        <span>Each message makes one OpenRouter request and may incur a small charge. Requests are limited to 128 output tokens. Do not enter secrets or personal information.</span>
+        <span>Each message makes one OpenRouter request and may incur a small charge. This demo UI chooses a 512-token response limit to keep requests bounded; it is a demo choice, not a core gateway feature. Do not enter secrets or personal information.</span>
       </section>
 
       <details class="settings">
@@ -57,11 +57,18 @@
         <label class="sr-only" for="prompt">Your message</label>
         <textarea id="prompt" rows="2" maxlength="4000" placeholder="Sign in to start chatting…" disabled required></textarea>
         <div class="composer-footer">
-          <span class="hint">One request · maximum 128 response tokens</span>
+          <span class="hint">One request · maximum 512 response tokens</span>
           <button id="send" class="button primary" type="submit" disabled>Send</button>
         </div>
       </form>
       <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+      <footer class="site-footer">
+        <span>Odyn Gateway · by Diwaker Singh</span>
+        <nav aria-label="Project links">
+          <a href="https://github.com/Diwaker-Singh/Odyn-Gateway" target="_blank" rel="noopener noreferrer">GitHub repo</a>
+          <a href="https://www.linkedin.com/in/diwaker-singh/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </nav>
+      </footer>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

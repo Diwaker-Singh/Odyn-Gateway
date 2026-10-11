@@ -66,7 +66,10 @@ existing Python loopback UI remains available for a local proxy flow:
 
 ## Safety and operation
 
-- The UI asks for one bounded request at a time, with a 128-token response cap.
+- The hosted and local demo UIs ask for one bounded request at a time and cap
+  responses at 512 tokens. This is a deliberate demo UI choice to bound request
+  size and possible provider cost; response length is not a core gateway
+  feature. The gateway itself permits a configured maximum of 1,024 tokens.
 - The gateway disables hidden model reasoning for these chat requests so the
   token budget remains available for visible answer text.
 - Chat history is held in page memory only and is cleared on reload or sign-out.

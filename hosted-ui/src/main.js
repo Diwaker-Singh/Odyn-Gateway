@@ -1,5 +1,6 @@
 import { PublicClientApplication } from "@azure/msal-browser";
 import { CONFIG_KEY, loadConnectionConfig, validateConnectionConfig } from "./config.js";
+import { MAX_RESPONSE_TOKENS } from "./limits.js";
 import "./style.css";
 
 const $ = (selector) => document.querySelector(selector);
@@ -149,7 +150,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch(config.gateway_url, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "default", messages, max_tokens: 128 }),
+      body: JSON.stringify({ model: "default", messages, max_tokens: MAX_RESPONSE_TOKENS }),
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
