@@ -261,7 +261,10 @@ class AzureConfigurationRegressionTests(unittest.TestCase):
         self.assertIn("cors_origins = var.browser_origins", main)
         shared = (ROOT / "infra/modules/llm-gateway/variables.tf").read_text()
         self.assertIn('variable "browser_origins"', shared)
-        self.assertIn("Browser origins must be exact HTTPS origins or loopback-only HTTP origins", shared)
+        self.assertIn(
+            "Browser origins must be exact HTTPS origins or loopback-only HTTP origins",
+            shared,
+        )
         self.assertIn(r"localhost|127\\.0\\.0\\.1|\\[::1\\]", shared)
 
     def azure_environment(self, endpoint):

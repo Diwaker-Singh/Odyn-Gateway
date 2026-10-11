@@ -273,6 +273,38 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertEqual(str(observed[0].url), URL)
         self.assertEqual(observed[0].headers["x-request-id"], "req-1")
         self.assertNotIn("traceparent", observed[0].headers)
+        request_body = json.loads(observed[0].content)
+        self.assertEqual(request_body["max_tokens"], 5)
+        self.assertEqual(request_body["reasoning"], {"enabled": False})
+
+    def test_reasoning_budget_exhaustion_is_not_retried(self):
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            body = json.loads(request.content)
+            self.assertEqual(body["max_tokens"], 128)
+            self.assertEqual(body["reasoning"], {"enabled": False})
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {"content": "", "reasoning": "private"},
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 12, "completion_tokens": 128},
+                },
+            )
+
+        result = self.provider(handler).send("test/model", (), 128, "request-1")
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result.kind, "http")
+        self.assertEqual(result.provider_http_status, 200)
+        self.assertEqual(result.failure_reason, "no_text_token_limit")
+        self.assertNotIn("private", repr(result))
 
     def test_only_provider_trace_context_and_safe_id_propagated(self):
         from opentelemetry.sdk.trace import TracerProvider

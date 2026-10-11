@@ -102,6 +102,11 @@ class OpenRouter:
                         "model": model_id,
                         "messages": list(messages),
                         "max_tokens": max_tokens,
+                        # The deployed chat model defaults to high reasoning.
+                        # With the UI's small output cap, reasoning can consume
+                        # all tokens and return finish_reason=length with no
+                        # visible answer. Chat responses do not need CoT output.
+                        "reasoning": {"enabled": False},
                         "stream": False,
                     },
                 ) as response,
