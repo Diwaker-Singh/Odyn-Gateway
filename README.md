@@ -47,6 +47,25 @@ See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 [provider portability](docs/provider-portability.md), and the [operational
 runbooks](docs/runbooks/).
 
+## Verification status
+
+The current Azure deployment is live and the latest recorded health check found
+revision 7 healthy with two replicas. Human and machine Entra sign-in have both
+been demonstrated, and a bounded live OpenRouter request returned HTTP 200.
+One controlled authentication alert reached Azure Monitor and its action group;
+one two-replica load run passed in stub mode. These checks demonstrate working
+paths, not full cloud acceptance. The remaining checks and their limits are in
+[cloud acceptance status](docs/cloud-acceptance-status.md).
+
+The latest recorded gateway revalidation before the hosted UI changes recorded
+221 passing tests and 18 release checks; the image-inclusive report recorded
+21/21 checks. The hosted UI currently has 4 passing configuration tests. GitHub Actions passed for
+commit `0f67ff36c9c24d4548de5b52f0ff4e9ede3b2b6a` at the time of the last
+verification: [CI run 38129315335](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38129315335).
+Cloud and local evidence artifacts are kept outside the public source tree; the
+status document labels what was observed and what is still unproven. A new demo
+video will be recorded after the hosted sign-in UI is ready.
+
 ## Local development
 
 Requirements: Python 3.13, Docker for image checks, and Terraform 1.9.8 for
@@ -76,18 +95,25 @@ For Terraform validation, initialize each root with `-backend=false` and
 `-lockfile=readonly` before running `terraform validate`. Never check in state,
 plans, real variable files, credentials, or local reports.
 
-## Local chat demo
+## Chat demo
 
-The optional loopback chat UI uses the configured human OIDC client and sends
-requests to the gateway. Start it with:
+The configurable static browser UI is hosted at
+https://diwaker-singh.github.io/Odyn-Gateway/ and uses the configured human
+Entra client to send bounded requests to the gateway. A local Python proxy UI
+is also available for development; start it with:
 
 ```sh
 .venv/bin/python scripts/local_chat_ui.py
 ```
 
 Configure the client using the steps in [identity setup](docs/identity-setup.md)
-and follow the [local demo guide](docs/local-chat-ui.md). The UI binds to
-`127.0.0.1`; it is not a hosted frontend.
+and follow the [local demo guide](docs/local-chat-ui.md). It binds to
+`127.0.0.1:8400`; the access token remains in the local Python process. The
+hosted SPA configuration, local preview, and security boundaries are described
+in the [hosted chat UI guide](docs/hosted-chat-ui.md). The Entra redirect and
+exact-origin APIM preflight are configured; the authenticated browser-to-chat
+path should be smoke-tested before recording a new end-to-end demo. Hosting the
+static files does not expose the OpenRouter key.
 
 ## Deployment and secrets
 

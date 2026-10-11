@@ -39,6 +39,7 @@ module "llm_gateway" {
   model_prices                = var.model_prices
   price_table_version         = var.price_table_version
   cors_origins                = var.cors_origins
+  browser_origins             = var.browser_origins
 }
 
 variable "idp_issuer_url" { type = string }
@@ -95,6 +96,16 @@ variable "model_prices" {
 variable "cors_origins" {
   type    = list(string)
   default = []
+}
+
+variable "browser_origins" {
+  type        = list(string)
+  description = "Exact HTTPS browser origins or loopback-only HTTP origins allowed by APIM CORS."
+  default     = []
+  validation {
+    condition     = alltrue([for origin in var.browser_origins : can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?$|^http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$", origin))])
+    error_message = "Browser origins must be exact HTTPS origins or loopback-only HTTP origins, without paths or wildcards."
+  }
 }
 
 variable "alert_notifications_enabled" {

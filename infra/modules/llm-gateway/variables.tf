@@ -213,6 +213,16 @@ variable "cors_origins" {
   }
 }
 
+variable "browser_origins" {
+  description = "Exact public browser origins allowed by the API edge CORS policy."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for origin in var.browser_origins : can(regex("^https://[A-Za-z0-9.-]+(:[0-9]+)?$|^http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$", origin))])
+    error_message = "Browser origins must be exact HTTPS origins or loopback-only HTTP origins, without paths or wildcards."
+  }
+}
+
 variable "alert_notifications_enabled" {
   description = "False for testing; enable only for the final approved delivery demonstration."
   type        = bool

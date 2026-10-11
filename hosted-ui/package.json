@@ -1,0 +1,16 @@
+{
+  "name": "odyn-gateway-hosted-chat",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "5.9.1"
+  },
+  "devDependencies": {
+    "vite": "7.3.7"
+  }
+}

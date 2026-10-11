@@ -49,6 +49,7 @@ variable "model_prices" {
   type = map(object({ input_usd_per_1k = number, output_usd_per_1k = number }))
 }
 variable "cors_origins" { type = list(string) }
+variable "browser_origins" { type = list(string) }
 
 variable "alert_notifications_enabled" { type = bool }
 

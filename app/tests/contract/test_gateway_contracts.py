@@ -251,6 +251,19 @@ class AzureConfigurationRegressionTests(unittest.TestCase):
         self.assertIn("${frontdoor_id}", policy)
         self.assertIn("X-Azure-FDID", policy)
 
+    def test_apim_cors_is_exact_origin_only_and_precedes_other_policy(self):
+        policy = (ROOT / "infra/modules/llm-gateway/azure/policy.xml.tftpl").read_text()
+        main = (ROOT / "infra/modules/llm-gateway/azure/main.tf").read_text()
+        self.assertLess(policy.index("<cors"), policy.index("<base />"))
+        self.assertIn('allow-credentials="false"', policy)
+        self.assertIn("<origin>${origin}</origin>", policy)
+        self.assertNotIn("<origin>*</origin>", policy)
+        self.assertIn("cors_origins = var.browser_origins", main)
+        shared = (ROOT / "infra/modules/llm-gateway/variables.tf").read_text()
+        self.assertIn('variable "browser_origins"', shared)
+        self.assertIn("Browser origins must be exact HTTPS origins or loopback-only HTTP origins", shared)
+        self.assertIn(r"localhost|127\\.0\\.0\\.1|\\[::1\\]", shared)
+
     def azure_environment(self, endpoint):
         tenant = "00000000-0000-0000-0000-000000000001"
         return {

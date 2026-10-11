@@ -17,6 +17,7 @@ module "azure" {
   price_table_version         = var.price_table_version
   live_enabled                = var.live_enabled
   cors_origins                = var.cors_origins
+  browser_origins             = var.browser_origins
   max_body_bytes              = var.max_body_bytes
   max_tokens_ceiling          = var.max_tokens_ceiling
   per_principal_rps           = var.per_principal_rps

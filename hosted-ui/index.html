@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://login.microsoftonline.com https: http://localhost:* http://127.0.0.1:*; frame-src https://login.microsoftonline.com; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>Odyn Gateway · Secure chat demo</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ODYN GATEWAY · LIVE DEMO</p>
+          <h1>Secure chat</h1>
+        </div>
+        <div class="identity">
+          <span id="session-status" role="status">Signed out</span>
+          <button id="sign-in" class="button secondary" type="button">Sign in with Microsoft</button>
+          <button id="sign-out" class="button secondary hidden" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <section class="notice" aria-label="Live demo notice">
+        <strong>Live provider</strong>
+        <span>Each message makes one OpenRouter request and may incur a small charge. Requests are limited to 128 output tokens. Do not enter secrets or personal information.</span>
+      </section>
+
+      <details class="settings">
+        <summary>Connection settings</summary>
+        <p>Public client settings only. Your Entra access token is sent to the gateway URL, so enter only an endpoint you trust. For local testing, enter your SPA client and gateway URL. Changes apply to this browser tab.</p>
+        <form id="settings-form">
+          <label>Tenant ID <input id="tenant-id" autocomplete="off" required /></label>
+          <label>SPA client ID <input id="client-id" autocomplete="off" required /></label>
+          <label>API scope <input id="scope" autocomplete="off" required /></label>
+          <label>Gateway chat URL <input id="gateway-url" type="url" autocomplete="url" required /></label>
+          <div class="settings-actions">
+            <button class="button primary" type="submit">Save and reload</button>
+            <button id="reset-settings" class="button secondary" type="button">Reset defaults</button>
+          </div>
+        </form>
+      </details>
+
+      <section id="conversation" class="conversation" aria-live="polite" aria-label="Conversation">
+        <div class="welcome" id="welcome">
+          <div class="spark" aria-hidden="true">✦</div>
+          <h2>Try the deployed gateway</h2>
+          <p>Sign in with an approved Entra account, then send a short message.</p>
+        </div>
+      </section>
+
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="prompt">Your message</label>
+        <textarea id="prompt" rows="2" maxlength="4000" placeholder="Sign in to start chatting…" disabled required></textarea>
+        <div class="composer-footer">
+          <span class="hint">One request · maximum 128 response tokens</span>
+          <button id="send" class="button primary" type="submit" disabled>Send</button>
+        </div>
+      </form>
+      <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

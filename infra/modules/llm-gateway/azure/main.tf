@@ -72,6 +72,7 @@ resource "azurerm_api_management_api_policy" "chat" {
     issuer       = var.idp_issuer_url
     audience     = var.idp_audience
     burst        = var.global_burst
+    cors_origins = var.browser_origins
     backend      = azurerm_container_app.main.ingress[0].fqdn
     frontdoor_id = azurerm_cdn_frontdoor_profile.main.resource_guid
   })

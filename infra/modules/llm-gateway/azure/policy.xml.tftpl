@@ -1,5 +1,25 @@
 <policies>
   <inbound>
+%{ if length(cors_origins) > 0 }
+    <cors allow-credentials="false" terminate-unmatched-request="true">
+      <allowed-origins>
+%{ for origin in cors_origins ~}
+        <origin>${origin}</origin>
+%{ endfor ~}
+      </allowed-origins>
+      <allowed-methods preflight-result-max-age="300">
+        <method>POST</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>authorization</header>
+        <header>content-type</header>
+      </allowed-headers>
+      <expose-headers>
+        <header>retry-after</header>
+        <header>x-request-id</header>
+      </expose-headers>
+    </cors>
+%{ endif }
     <base />
     <set-header name="X-Request-Id" exists-action="override"><value>@(context.RequestId.ToString("N"))</value></set-header>
     <choose>

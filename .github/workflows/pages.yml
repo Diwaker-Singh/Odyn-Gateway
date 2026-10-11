@@ -1,0 +1,68 @@
+name: Hosted chat UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "hosted-ui/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: hosted-ui/package-lock.json
+      - name: Install locked UI dependencies
+        working-directory: hosted-ui
+        run: npm ci
+      - name: Test configuration validation
+        working-directory: hosted-ui
+        run: npm test
+      - name: Audit production and build dependencies
+        working-directory: hosted-ui
+        run: npm audit --audit-level=high
+      - name: Generate public runtime configuration
+        working-directory: hosted-ui
+        env:
+          ODYN_ENTRA_TENANT_ID: ${{ vars.ODYN_ENTRA_TENANT_ID }}
+          ODYN_ENTRA_CLIENT_ID: ${{ vars.ODYN_ENTRA_CLIENT_ID }}
+          ODYN_API_SCOPE: ${{ vars.ODYN_API_SCOPE }}
+          ODYN_GATEWAY_CHAT_URL: ${{ vars.ODYN_GATEWAY_CHAT_URL }}
+          ODYN_BASE_PATH: "/Odyn-Gateway/"
+        run: node scripts/write-config.mjs
+      - name: Build static site
+        working-directory: hosted-ui
+        env:
+          ODYN_BASE_PATH: "/Odyn-Gateway/"
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: hosted-ui/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
