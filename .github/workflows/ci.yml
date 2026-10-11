@@ -136,12 +136,12 @@ jobs:
           persist-credentials: false
       - run: docker build -f app/Dockerfile -t odyn-gateway:ci .
       - run: docker build -f infra/telemetry/Dockerfile -t odyn-collector:ci infra/telemetry
-      - uses: aquasecurity/trivy-action@0.36.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "odyn-collector:ci"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@0.36.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "odyn-gateway:ci"
           severity: "HIGH,CRITICAL"
