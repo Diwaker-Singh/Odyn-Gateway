@@ -54,7 +54,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install "mypy==2.4.0" # pinned to local lock input; refresh together
+      - name: Install locked application and type-check dependencies
+        run: pip install --require-hashes -r app/requirements.lock
       - run: mypy --config-file app/pyproject.toml app/src
 
   policy-guard:
@@ -135,12 +136,12 @@ jobs:
           persist-credentials: false
       - run: docker build -f app/Dockerfile -t odyn-gateway:ci .
       - run: docker build -f infra/telemetry/Dockerfile -t odyn-collector:ci infra/telemetry
-      - uses: aquasecurity/trivy-action@0.24.0
+      - uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: "odyn-collector:ci"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@0.24.0
+      - uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: "odyn-gateway:ci"
           severity: "HIGH,CRITICAL"
