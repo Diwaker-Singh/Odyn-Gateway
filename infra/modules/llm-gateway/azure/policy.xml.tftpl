@@ -1,0 +1,37 @@
+<policies>
+  <inbound>
+    <base />
+    <set-header name="X-Request-Id" exists-action="override"><value>@(context.RequestId.ToString("N"))</value></set-header>
+    <choose>
+      <when condition="@(context.Request.Headers.GetValueOrDefault(&quot;X-Azure-FDID&quot;, &quot;&quot;) != &quot;${frontdoor_id}&quot;)">
+        <return-response>
+          <set-status code="403" reason="Forbidden" />
+          <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+          <set-body>@{ return new Newtonsoft.Json.Linq.JObject(new Newtonsoft.Json.Linq.JProperty("error", new Newtonsoft.Json.Linq.JObject(new Newtonsoft.Json.Linq.JProperty("code", "forbidden"), new Newtonsoft.Json.Linq.JProperty("message", "Forbidden gateway origin."), new Newtonsoft.Json.Linq.JProperty("request_id", context.RequestId.ToString("N"))))).ToString(); }</set-body>
+        </return-response>
+      </when>
+    </choose>
+    <validate-jwt id="jwt" header-name="Authorization" require-scheme="Bearer" require-expiration-time="true" require-signed-tokens="true" clock-skew="60" failed-validation-httpcode="401">
+      <openid-config url="${issuer}/.well-known/openid-configuration" />
+      <audiences><audience>${audience}</audience></audiences>
+      <issuers><issuer>${issuer}</issuer></issuers>
+    </validate-jwt>
+    <rate-limit-by-key id="rate" calls="${burst}" renewal-period="1" counter-key="global" retry-after-header-name="Retry-After" />
+    <rewrite-uri template="/v1/chat" copy-unmatched-params="false" />
+    <set-backend-service base-url="https://${backend}" />
+  </inbound>
+  <backend><forward-request timeout="25" fail-on-error-status-code="false" /></backend>
+  <outbound>
+    <base />
+    <set-header name="Strict-Transport-Security" exists-action="override"><value>max-age=31536000</value></set-header>
+    <set-header name="Cache-Control" exists-action="override"><value>no-store</value></set-header>
+    <set-header name="X-Content-Type-Options" exists-action="override"><value>nosniff</value></set-header>
+  </outbound>
+  <on-error>
+    <set-header name="X-Request-Id" exists-action="override"><value>@(context.RequestId.ToString("N"))</value></set-header>
+    <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+    <set-header name="Strict-Transport-Security" exists-action="override"><value>max-age=31536000</value></set-header>
+    <set-status code="@(context.LastError.Reason == &quot;OperationNotFound&quot; ? 404 : context.LastError.PolicyId == &quot;jwt&quot; ? 401 : context.LastError.PolicyId == &quot;rate&quot; ? 429 : 503)" reason="Request rejected" />
+    <set-body>@{ return new Newtonsoft.Json.Linq.JObject(new Newtonsoft.Json.Linq.JProperty("error", new Newtonsoft.Json.Linq.JObject(new Newtonsoft.Json.Linq.JProperty("code", context.LastError.Reason == "OperationNotFound" ? "not_found" : context.LastError.PolicyId == "jwt" ? "unauthenticated" : context.LastError.PolicyId == "rate" ? "rate_limited" : "upstream_unavailable"), new Newtonsoft.Json.Linq.JProperty("message", "Request rejected."), new Newtonsoft.Json.Linq.JProperty("request_id", context.RequestId.ToString("N"))))).ToString(); }</set-body>
+  </on-error>
+</policies>

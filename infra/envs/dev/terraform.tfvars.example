@@ -1,0 +1,7 @@
+# Example vars — placeholders only. Never put secrets here.
+# cloud               = "azure"
+# environment         = "dev"
+# idp_issuer_url      = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+# rate_limit_rps      = 10
+# alert_endpoints     = []
+# upstream_mode       = "stub"

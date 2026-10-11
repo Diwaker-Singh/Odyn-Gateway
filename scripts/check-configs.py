@@ -1,0 +1,73 @@
+"""Parse repository configuration and enforce deployment/CI contracts offline."""
+
+import ast
+import json
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import tomllib
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def main():
+    parsed = 0
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or any(
+            part.startswith(".venv")
+            or part
+            in (
+                ".git",
+                ".secrets",
+                ".terraform",
+                "__pycache__",
+                "build",
+                "dist",
+            )
+            for part in path.parts
+        ):
+            continue
+        suffix = path.suffix
+        if suffix == ".py":
+            ast.parse(path.read_text(), filename=str(path.relative_to(ROOT)))
+        elif suffix == ".toml":
+            tomllib.loads(path.read_text())
+        elif suffix in (".yaml", ".yml"):
+            yaml.safe_load(path.read_text())
+        elif suffix == ".json":
+            json.loads(path.read_text())
+        elif path.name.endswith(".xml.tftpl"):
+            tree = ET.fromstring(re.sub(r"\$\{[^}]+\}", "fixture", path.read_text()))
+            assert tree.tag == "policies"
+            assert tree.find("backend/forward-request") is not None
+            assert tree.find("inbound/forward-request") is None
+            assert tree.find("inbound/validate-jwt") is not None
+        else:
+            continue
+        parsed += 1
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    assert workflow.get("permissions") == {"contents": "read"}
+    for job in workflow["jobs"].values():
+        for step in job["steps"]:
+            command = step.get("run", "")
+            assert not re.search(
+                r"\b(terraform.*\b(?:plan|apply|destroy)|az\s+(?:login|keyvault)|set-provider-key|scripts/deploy)\b",
+                command,
+            )
+    for lock in (
+        "requirements.lock",
+        "requirements-runtime.lock",
+        "requirements-scan.lock",
+    ):
+        content = (ROOT / "app" / lock).read_text()
+        assert "--hash=sha256:" in content
+        assert not re.search(r"^\w[^\n]*>=", content, re.MULTILINE)
+    print(
+        f"Parsed {parsed} configurations/sources; policy XML, CI and lock contracts passed."
+    )
+
+
+if __name__ == "__main__":
+    main()

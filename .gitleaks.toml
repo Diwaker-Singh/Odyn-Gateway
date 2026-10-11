@@ -1,0 +1,22 @@
+# Gitleaks config (scaffold). No real keys in this repo.
+# Detects OpenRouter-style keys by prefix only; value below is a REDACTED placeholder pattern, not a key.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "openrouter-key"
+description = "OpenRouter-style key prefix (placeholder pattern, not a secret)"
+# Matches the prefix plus generic token chars. No example secret is stored here.
+regex = '''sk-or-v1-[A-Za-z0-9_-]{10,}'''
+tags = ["key", "openrouter"]
+
+[[allowlists]]
+description = "Allow documentation that names the prefix without a value"
+regexes = ['''sk-or-v1-\*\*\*REDACTED\*\*\*''', '''sk-or-v1-<[^>]+>''']
+paths = ['''(^|/)__pycache__/''', '''\.pyc$''']
+
+[[allowlists]]
+description = "Official Python image signing public-key fingerprint in historical Trivy metadata"
+paths = ['''(^|/)evidence/trivy-image-2026-10-09\.json$''']
+regexTarget = "line"
+regexes = ['''ENV GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305''']

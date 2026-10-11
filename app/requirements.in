@@ -1,0 +1,18 @@
+# Pinned direct dependencies (Python 3.13 floor). Versions verified via PyPI
+# 2026-10-09; compiled to app/requirements.lock with hashes via pip-tools.
+# uvicorn serves the LOCAL stub only (k6/manual runs); live upstream stays gated.
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1
+PyJWT==2.15.1
+cryptography==50.0.2
+pytest==9.1.1
+azure-data-tables==12.7.0
+azure-identity==1.26.0
+opentelemetry-sdk==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1
+build==1.6.1
+hatchling==1.32.4
+pip-tools==7.6.2
+ruff==0.16.10
+mypy==2.4.0

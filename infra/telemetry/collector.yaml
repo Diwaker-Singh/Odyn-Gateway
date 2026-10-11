@@ -1,0 +1,29 @@
+# Used as an environment configuration by the collector sidecar. The listener
+# accepts OTLP only from containers sharing the Container App network namespace.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 192
+    spike_limit_mib: 64
+  batch:
+    timeout: 5s
+    send_batch_size: 128
+    send_batch_max_size: 256
+exporters:
+  azure_monitor:
+    connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [azure_monitor]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [azure_monitor]

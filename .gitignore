@@ -1,0 +1,78 @@
+# Security baseline. Excludes secrets/state/logs/artifacts.
+# Allows: .env.example, source (*.py), Terraform modules (*.tf), CI, tests.
+# Never commit real secrets; use placeholders only. Stub is the runtime default.
+
+# Env / local secrets (allow example)
+.env
+.env.*
+!.env.example
+.secrets/
+*.secret
+secrets*.json
+*credentials*.json
+*credential*.xml
+
+# Terraform state / plans / cache / local secret var files
+# NOTE: `.terraform.lock.hcl` is intentionally TRACKED (provider reproducibility).
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+!.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+!*.example.tfvars
+override.tf
+override.tf.json
+*_override.tf
+crash.log
+crash.*.log
+
+# Private keys / certs / credential exports
+# NOTE: `*.pub` covers SSH/public-key material; docs markdown is never matched
+# by the rules above, so no negation is needed here.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Logs / coverage / caches
+*.log
+logs/
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts / envs (`env/` = conventional local venv name, not `infra/envs/`)
+dist/
+build/
+*.egg-info/
+.venv/
+.venv-scan/
+venv/
+env/
+node_modules/
+.docker/
+k6-results/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local reports and verification output are never part of the source tree.
+.artifacts/
+evidence/

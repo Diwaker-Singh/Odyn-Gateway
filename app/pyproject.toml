@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gateway"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/gateway", "pyproject.toml", "requirements.in", "requirements.lock"]
+[project]
+name = "odyn-gateway"
+version = "0.1.0"
+description = "Secure inference gateway with authoritative admission and explicit provider adapters"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi==0.143.0", "uvicorn==0.54.0", "httpx==0.28.1",
+  "PyJWT==2.15.1", "cryptography==50.0.2", "azure-data-tables==12.7.0",
+  "azure-identity==1.26.0", "opentelemetry-sdk==1.45.1",
+  "opentelemetry-exporter-otlp-proto-http==1.45.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app/src"]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "RUF", "PLW", "SIM", "FURB", "EXE"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_ignores = true
+check_untyped_defs = true

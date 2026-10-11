@@ -1,0 +1,10 @@
+-c requirements.lock
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1
+PyJWT==2.15.1
+cryptography==50.0.2
+azure-data-tables==12.7.0
+azure-identity==1.26.0
+opentelemetry-sdk==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1

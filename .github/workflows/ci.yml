@@ -1,0 +1,147 @@
+# CI — checks only. No deployment, no cloud credentials, no secrets, no `terraform apply`.
+# Policy: every job FAILS (red) when its tool, artifact, or assertion is missing.
+# Nothing is masked with `|| echo`. Mirrors local gates: `make test`, `make policy`,
+# `ruff`, `mypy`, backend-free Terraform fmt/validate, tflint,
+# checkov, gitleaks and trivy.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    # Hashed lock install (lock exists); unittest discovers all suites.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13" # floor per review decision
+      - name: Install locked deps
+        run: pip install --require-hashes -r app/requirements.lock
+      - run: python -m compileall -q app/src app/tests scripts
+      - run: python -m build --no-isolation app
+      - run: python -m pip check
+      - name: Run unit + contract tests
+        run: PYTHONPATH=app/src:app/tests python3 -m unittest discover -s app/tests -v
+
+  lint:
+    # Ruff pinned to the local lock input; refresh together.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install "ruff==0.16.10" # pinned to local lock input; refresh together
+      - run: ruff check app scripts && ruff format --check app scripts
+
+  typecheck:
+    # mypy pinned to the local lock input; refresh together.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install "mypy==2.4.0" # pinned to local lock input; refresh together
+      - run: mypy --config-file app/pyproject.toml app/src
+
+  policy-guard:
+    # Stdlib only — always runs, even with no Terraform. No OPA by decision.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python3 scripts/policy-guard.py
+
+  terraform:
+    # Backend-free init/validate with committed provider locks; no cloud state.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8" # matches versions.tf + local binary
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=infra/modules/llm-gateway init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/modules/llm-gateway validate
+      - run: terraform -chdir=infra/envs/dev/azure init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/envs/dev/azure validate
+      - run: terraform -chdir=infra/bootstrap init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/bootstrap validate
+      - run: terraform -chdir=infra/artifacts init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/artifacts validate
+
+  tflint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: "v0.55.1" # matches the local toolchain
+      - run: tflint --chdir=infra/modules/llm-gateway --init
+      - run: tflint --chdir=infra/modules/llm-gateway
+
+  checkov:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m venv .venv-scan
+      - run: .venv-scan/bin/python -m pip install --require-hashes -r app/requirements-scan.lock
+      - run: .venv-scan/bin/python scripts/check-configs.py
+      - run: .venv-scan/bin/checkov -d infra --framework terraform --skip-download --quiet --compact
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trivy:
+    # Build and scan both runtime images; no publication.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: docker build -f app/Dockerfile -t odyn-gateway:ci .
+      - run: docker build -f infra/telemetry/Dockerfile -t odyn-collector:ci infra/telemetry
+      - uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: "odyn-collector:ci"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: "odyn-gateway:ci"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"

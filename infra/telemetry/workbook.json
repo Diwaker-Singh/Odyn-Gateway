@@ -1,0 +1,112 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Odyn Gateway operational dashboard\nShows route-level request volume and latency, upstream dependency outcomes, token usage, and accounting events. Prompts, completions, bearer tokens, provider credentials, and raw identity claims are not collected."
+      },
+      "name": "overview"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | where timestamp > ago(1h) and name == \"gateway.chat\" | extend Route=coalesce(tostring(customDimensions[\"http.route\"]), name) | summarize Requests=sum(itemCount), Errors=sumif(itemCount, toint(resultCode) >= 500), Throttles=sumif(itemCount, resultCode == \"429\"), AuthFailures=sumif(itemCount, resultCode in (\"401\", \"403\")) by Route, bin(timestamp, 1m) | render timechart",
+        "size": 0,
+        "title": "Request rate and errors",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "Request rate and errors"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | where timestamp > ago(1h) and name == \"gateway.chat\" | extend Route=coalesce(tostring(customDimensions[\"http.route\"]), name) | summarize P50=percentile(duration, 50), P95=percentile(duration, 95), P99=percentile(duration, 99) by Route, bin(timestamp, 1m) | render timechart",
+        "size": 0,
+        "title": "Latency percentiles",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "Latency percentiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where timestamp > ago(1h) and name == \"POST\" and target == \"POST\" | summarize Calls=sum(itemCount), Failures=sumif(itemCount, success == false), P95=percentile(duration, 95) by bin(timestamp, 1m) | render timechart",
+        "size": 0,
+        "title": "OpenRouter provider dependency outcomes",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "Dependency outcomes"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics | where timestamp > ago(1h) and name == \"gateway.events\" | extend Event=tostring(customDimensions.event) | summarize Events=sum(valueSum) by Event | order by Events desc",
+        "size": 0,
+        "title": "Security and accounting events",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "Security and accounting events"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics | where timestamp > ago(1h) and name == \"gateway.upstream.requests\" | summarize Requests=sum(valueSum) by tostring(customDimensions.outcome), bin(timestamp, 1m) | render timechart",
+        "size": 0,
+        "title": "Upstream request outcomes (requests)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "upstream-request-counts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics | where timestamp > ago(1h) and name == \"gateway.upstream.duration\" | summarize DurationSeconds=sum(valueSum), Samples=sum(valueCount) by bin(timestamp, 1m) | extend MeanSeconds=iff(Samples > 0, DurationSeconds/Samples, real(null)) | project timestamp, MeanSeconds | render timechart",
+        "size": 0,
+        "title": "Upstream latency (seconds)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "upstream-latency"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics | where timestamp > ago(1h) and name == \"gateway.tokens\" | summarize Tokens=sum(valueSum) by tostring(customDimensions.model), tostring(customDimensions.direction), bin(timestamp, 1m) | render timechart",
+        "size": 0,
+        "title": "Token usage (tokens)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "token-usage"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "# Alert response runbooks\n\nAzure Monitor alert conditions distinguish `monitorCondition` (Fired/Resolved) from `state` (user acknowledgement). Use the linked operational runbooks for response steps. Notification actions must be configured for each environment.\n\n---\n\n# Runbook: gateway errors and latency\n\n1. Identify the affected route, region and running application revision.\n2. Correlate gateway request/dependency telemetry using request and trace IDs.\n   Do not include prompts, responses, bearer tokens or credentials in incident\n   notes.\n3. Separate gateway 502/503/504 responses, shared-store errors, upstream\n   failures and readiness/revision failures.\n4. Pause synthetic traffic when the authoritative store is unhealthy. Do not\n   automatically replay a provider request if the provider may already have\n   processed it.\n5. For a confirmed bad revision, roll back to a known-good image digest using\n   the deployment procedure. Verify health and a bounded request after\n   mitigation.\n\n---\n\n# Runbook: authentication failures\n\n1. Separate 401 responses (missing/invalid authentication) from 403 responses\n   (valid identity without the required permission).\n2. Compare the time window with identity-provider, key-rotation and gateway\n   configuration changes.\n3. Inspect aggregate status and redacted diagnostics only. Never record raw\n   access tokens or personal token claims.\n4. Verify issuer, audience, signing-key refresh and the expected delegated\n   scope or application role. Do not weaken token validation to restore access.\n5. After mitigation, test one valid human flow and one valid workload flow,\n   then confirm invalid tokens still fail closed.\n\n---\n\n# Runbook: throttling responses\n\n1. Compare aggregate 429 responses with the configured per-principal/global\n   rate and budget limits.\n2. Confirm responses include a valid integer `Retry-After` and clients back off\n   instead of retrying in a tight loop.\n3. Check shared-store health, admission latency and conditional-write conflicts.\n   Distinguish intentional rejection from storage failures reported as 503.\n4. If a client is looping or the store is unhealthy, reduce or pause its\n   traffic. Do not relax admission limits during an incident without reviewing\n   the capacity and cost impact.\n5. After mitigation, verify a valid request succeeds and rejected requests\n   still receive bounded retry guidance.\n\n---\n\n# Runbook: accounting and shared-store anomalies\n\n1. Correlate safe request IDs and trace IDs; inspect aggregate reservation,\n   usage and store events. Never log prompts, credentials or bearer tokens.\n2. Keep admission fail-closed while the authoritative store is unavailable. Do\n   not fall back to process-local accounting.\n3. Preserve conservative reservations when provider usage is unknown. Do not\n   release a reservation or replay an ambiguous paid request automatically.\n4. Check model pricing configuration, request caps, transaction conflicts and\n   store latency. Pause live traffic if accounting correctness is uncertain.\n5. Reconcile provider usage through approved private tooling before correcting\n   an account. Verify recovery with controlled stub requests before resuming\n   live traffic.\n\n---\n\n# Runbook: shared-store contention\n\n1. Reduce or stop load while investigating. Do not rerun a failing stress test\n   against a live provider.\n2. Compare aggregate response counts with gateway admission-conflict events and\n   storage transaction diagnostics. Inspect transaction sub-operation outcomes,\n   not only the outer batch response.\n3. Confirm active image digest, replica count, request deadlines and shared\n   store health. A process-local coordinator can reduce same-process stampedes;\n   the store remains the cross-replica authority.\n4. Keep admission fail-closed. Do not switch to in-memory state or retry a\n   provider request whose dispatch status is ambiguous.\n5. Recovery requires intentional throttling to return 429 with valid\n   `Retry-After`, storage-induced 503s to stop, and reservations to remain\n   atomic under concurrent writers."
+      },
+      "name": "alert-runbooks"
+    }
+  ],
+  "isLocked": false,
+  "fallbackResourceIds": []
+}

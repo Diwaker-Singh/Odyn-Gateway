@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Odyn Gateway</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ODYN · PRIVATE LOCAL DEMO</p>
+          <h1>Gateway chat</h1>
+        </div>
+        <div class="identity">
+          <span id="session-status" class="status" role="status">Signed out</span>
+          <button id="sign-in" class="button button-secondary" type="button">Sign in with Microsoft</button>
+          <button id="sign-out" class="button button-secondary hidden" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <section class="notice" aria-label="Demo information">
+        <strong>Live service</strong>
+        <span>Messages are sent through the deployed gateway to OpenRouter. Each send makes one provider request and may incur a small charge. This page does not save chat history.</span>
+      </section>
+
+      <section id="conversation" class="conversation" aria-live="polite" aria-label="Conversation">
+        <div class="welcome" id="welcome">
+          <div class="spark">✦</div>
+          <h2>Try the deployed gateway</h2>
+          <p>Sign in with your Entra account, then send a short message.</p>
+        </div>
+      </section>
+
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="prompt">Your message</label>
+        <textarea id="prompt" rows="2" maxlength="4000" placeholder="Sign in to start chatting…" disabled required></textarea>
+        <div class="composer-footer">
+          <span class="hint">Up to 128 response tokens per message</span>
+          <button id="send" class="button button-primary" type="submit" disabled>Send</button>
+        </div>
+      </form>
+      <p id="feedback" class="feedback" role="status"></p>
+    </main>
+  </body>
+</html>

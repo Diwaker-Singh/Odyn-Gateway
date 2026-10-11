@@ -1,0 +1,6 @@
+# .tool-versions — pins ONLY locally verified tools.
+# Target floor is python 3.13 per review decision; local stdlib checks run on the
+# available 3.14.5 interpreter (dedicated 3.13-interpreter verification pending,
+# no installs performed). git 2.54.0, azure-cli 2.87.0 verified (not managed here).
+# PENDING (not installed, versions unverified — do not pin): terraform, tflint, checkov, k6, gitleaks, trivy, pre-commit, node, ruff, mypy.
+python 3.13
