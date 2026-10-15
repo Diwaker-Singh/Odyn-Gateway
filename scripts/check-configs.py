@@ -59,6 +59,7 @@ def main():
     for filename, initial_job, protected_job, environment in (
         ("release.yml", "build", "publish", "azure-release"),
         ("deploy.yml", "plan", "apply", "azure-deploy"),
+        ("infrastructure.yml", "plan", "apply", "azure-foundation-apply"),
     ):
         delivery = yaml.safe_load((ROOT / ".github/workflows" / filename).read_text())
         triggers = delivery.get("on", delivery.get(True))
@@ -67,7 +68,12 @@ def main():
         assert delivery["concurrency"]["cancel-in-progress"] is False
         jobs = delivery["jobs"]
         assert "refs/heads/main" in jobs[initial_job]["if"]
-        assert "AZURE_DELIVERY_ENABLED" in jobs[initial_job]["if"]
+        feature_flag = (
+            "AZURE_FOUNDATION_ENABLED"
+            if filename == "infrastructure.yml"
+            else "AZURE_DELIVERY_ENABLED"
+        )
+        assert feature_flag in jobs[initial_job]["if"]
         assert jobs[protected_job]["needs"] == initial_job
         assert jobs[protected_job]["environment"] == environment
         assert jobs[protected_job]["permissions"]["id-token"] == "write"

@@ -139,9 +139,9 @@ stub mode. These checks demonstrate working paths, not full cloud acceptance.
 The remaining checks and their limits are in [cloud acceptance
 status](docs/cloud-acceptance-status.md).
 
-A fresh local review on 14 October 2026 passed 245 gateway/tooling tests, Ruff,
-mypy, repository policy checks, 5 hosted UI configuration tests, and the hosted
-UI production build. Terraform configuration in all 4 roots passed the earlier
+Local validation on 15 October 2026 passed 252 gateway/tooling tests, Ruff,
+mypy, repository policy and configuration checks. The preceding hosted UI
+validation passed 5 configuration tests and the production build. Terraform configuration in all 4 roots passed the earlier
 release validation. GitHub Actions CI passed for source commit
 `fcb13361fc36736a5f3cd58267c70b77a9c4fd49`: [workflow run
 38135709389](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709389).
@@ -209,7 +209,9 @@ Terraform environments and operator commands are documented in
 [`infra/bootstrap/README.md`](infra/bootstrap/README.md), and
 [`scripts/README.md`](scripts/README.md). The local deployment driver defaults to
 read-only preflight and requires an explicitly reviewed saved plan for changes.
-Separate manual [release and deployment workflows](docs/delivery.md) add
+A manual [foundation workflow](docs/foundation-deployment.md) covers one-time
+state-storage and registry provisioning. Separate manual
+[release and deployment workflows](docs/delivery.md) add
 OIDC-authenticated image publication and protected saved-plan application. They
 remain disabled until Azure trust, scoped identities, private runners and
 GitHub environment approvals are configured; they have not been cloud-tested.

@@ -1,7 +1,8 @@
 """Release provenance and encrypted saved-plan helpers for GitHub Actions.
 
-No command publishes images or applies infrastructure itself. Workflow jobs
-supply trusted configuration via environment variables, never shell interpolation.
+The publication command uploads verified images; Terraform application remains
+in protected workflow jobs. Configuration arrives through environment variables,
+never shell interpolation.
 """
 
 import argparse
@@ -10,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -102,6 +104,7 @@ def context():
     }
     return {
         "source_sha": os.environ["GITHUB_SHA"],
+        "component": os.environ.get("ODYN_INFRA_COMPONENT", "application"),
         "resource_group": os.environ["AZURE_RESOURCE_GROUP"],
         "registry": os.environ["ACR_LOGIN_SERVER"],
         "subscription": account["id"],
@@ -109,6 +112,72 @@ def context():
         "principal": account["user"]["name"],
         "inputs_sha256": sha256(json.dumps(inputs, sort_keys=True).encode()),
     }
+
+
+def infrastructure_root(directory):
+    component = os.environ.get("ODYN_INFRA_COMPONENT", "application")
+    if component not in ("application", "bootstrap", "registry"):
+        raise ValueError("Unsupported infrastructure component")
+    return (
+        ROOT / "infra/envs/dev/azure"
+        if component == "application"
+        else directory / "root"
+    )
+
+
+def prepare_infrastructure(directory):
+    """Copy a fixed Terraform root and attach a pre-existing management backend."""
+    component = os.environ["ODYN_INFRA_COMPONENT"]
+    if component not in ("bootstrap", "registry"):
+        raise ValueError("Expected bootstrap or registry component")
+    variables = json.loads(os.environ["APPLICATION_TFVARS_JSON"])
+    backend = json.loads(os.environ["TF_BACKEND_JSON"])
+    destination = os.environ["AZURE_RESOURCE_GROUP"]
+    for field, expected in (
+        ("subscription_id", os.environ["AZURE_SUBSCRIPTION_ID"]),
+        ("tenant_id", os.environ["AZURE_TENANT_ID"]),
+    ):
+        if variables.get(field) != expected:
+            raise ValueError("Infrastructure destination mismatch")
+    expected_group = (
+        variables.get("resource_group_name")
+        if component == "bootstrap"
+        else f"rg-odyn-gateway-artifacts-{variables['environment']}"
+    )
+    if expected_group != destination:
+        raise ValueError("Infrastructure resource group mismatch")
+    if backend.get("use_azuread_auth") is not True or any(
+        field in backend for field in ("access_key", "sas_token", "client_secret")
+    ):
+        raise ValueError("Management backend must use Entra authentication")
+    if backend.get("resource_group_name") == destination:
+        raise ValueError("Management state must be outside the managed resource group")
+    if (
+        backend.get("subscription_id", os.environ["AZURE_SUBSCRIPTION_ID"])
+        != os.environ["AZURE_SUBSCRIPTION_ID"]
+    ):
+        raise ValueError("Management backend subscription mismatch")
+    if (
+        backend.get("tenant_id", os.environ["AZURE_TENANT_ID"])
+        != os.environ["AZURE_TENANT_ID"]
+    ):
+        raise ValueError("Management backend tenant mismatch")
+    if backend.get("key") != f"{destination}/{component}.tfstate":
+        raise ValueError("Use a destination-specific component state key")
+    if not all(
+        backend.get(k)
+        for k in ("resource_group_name", "storage_account_name", "container_name")
+    ):
+        raise ValueError("Management backend storage/container missing")
+    directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+    root = infrastructure_root(directory)
+    root.mkdir(mode=0o700, exist_ok=True)
+    source = ROOT / "infra" / ("bootstrap" if component == "bootstrap" else "artifacts")
+    for path in [*source.glob("*.tf"), source / ".terraform.lock.hcl"]:
+        shutil.copyfile(path, root / path.name)
+    (root / "backend.tf").write_text('terraform {\n  backend "azurerm" {}\n}\n')
+    (directory / "application.tfvars.json").write_text(json.dumps(variables))
+    (directory / "backend.json").write_text(json.dumps(backend))
 
 
 def prepare(directory, receipt):
@@ -142,7 +211,7 @@ def seal(directory):
         run(
             [
                 "terraform",
-                "-chdir=infra/envs/dev/azure",
+                f"-chdir={infrastructure_root(directory)}",
                 "show",
                 "-json",
                 str(plan),
@@ -290,12 +359,17 @@ def publication(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "seal", "unseal", "publish"))
+    parser.add_argument(
+        "action",
+        choices=("prepare", "prepare-infrastructure", "seal", "unseal", "publish"),
+    )
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--release", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
-    if args.action == "prepare":
+    if args.action == "prepare-infrastructure":
+        prepare_infrastructure(args.directory)
+    elif args.action == "prepare":
         prepare(args.directory, args.release)
     elif args.action == "seal":
         seal(args.directory)

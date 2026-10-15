@@ -223,3 +223,101 @@ class DeliveryTests(unittest.TestCase):
             else:
                 MODULE.unseal(directory)
                 self.assertEqual((directory / "application.tfplan").read_bytes(), data)
+
+
+class FoundationTests(unittest.TestCase):
+    def configuration(self, component="bootstrap"):
+        group = (
+            "rg-odyn-gateway-tfstate"
+            if component == "bootstrap"
+            else "rg-odyn-gateway-artifacts-demo10"
+        )
+        variables = {
+            "subscription_id": "sub",
+            "tenant_id": "tenant",
+            "resource_group_name": group,
+            "environment": "demo10",
+        }
+        backend = {
+            "resource_group_name": "rg-management",
+            "storage_account_name": "managementstore",
+            "container_name": "tfstate",
+            "key": f"{group}/{component}.tfstate",
+            "use_azuread_auth": True,
+        }
+        return {
+            "ODYN_INFRA_COMPONENT": component,
+            "APPLICATION_TFVARS_JSON": json.dumps(variables),
+            "TF_BACKEND_JSON": json.dumps(backend),
+            "AZURE_RESOURCE_GROUP": group,
+            "AZURE_SUBSCRIPTION_ID": "sub",
+            "AZURE_TENANT_ID": "tenant",
+        }
+
+    def test_both_roots_preserve_lock_and_attach_remote_backend(self):
+        for component, folder in (
+            ("bootstrap", "bootstrap"),
+            ("registry", "artifacts"),
+        ):
+            with (
+                self.subTest(component=component),
+                tempfile.TemporaryDirectory() as temp,
+                patch.dict(os.environ, self.configuration(component)),
+            ):
+                directory = Path(temp)
+                MODULE.prepare_infrastructure(directory)
+                self.assertEqual(
+                    (directory / "root/.terraform.lock.hcl").read_bytes(),
+                    (ROOT / f"infra/{folder}/.terraform.lock.hcl").read_bytes(),
+                )
+                self.assertIn(
+                    'backend "azurerm"', (directory / "root/backend.tf").read_text()
+                )
+                self.assertEqual(
+                    MODULE.infrastructure_root(directory), directory / "root"
+                )
+
+    def test_management_state_cannot_be_in_target_group(self):
+        self.reject_backend({"resource_group_name": "rg-odyn-gateway-tfstate"})
+
+    def test_management_state_rejects_static_credentials(self):
+        for name in ("access_key", "sas_token", "client_secret"):
+            with self.subTest(name=name):
+                self.reject_backend({name: "do-not-use"})
+        self.reject_backend({"use_azuread_auth": False})
+
+    def test_management_state_key_is_bound_to_group_and_component(self):
+        self.reject_backend({"key": "application.tfstate"})
+        self.reject_backend({"key": "rg-odyn-gateway-tfstate/registry.tfstate"})
+
+    def test_management_state_rejects_cross_subscription_and_tenant(self):
+        self.reject_backend({"subscription_id": "another"})
+        self.reject_backend({"tenant_id": "another"})
+
+    def test_unknown_component_cannot_select_arbitrary_terraform_source(self):
+        with (
+            patch.dict(os.environ, {"ODYN_INFRA_COMPONENT": "../../other"}),
+            self.assertRaises(ValueError),
+        ):
+            MODULE.infrastructure_root(Path("unused"))
+
+    def test_foundation_tfvars_destination_must_match(self):
+        configuration = self.configuration()
+        configuration["AZURE_RESOURCE_GROUP"] = "other"
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(os.environ, configuration),
+            self.assertRaises(ValueError),
+        ):
+            MODULE.prepare_infrastructure(Path(temp))
+
+    def reject_backend(self, changes):
+        configuration = self.configuration()
+        backend = json.loads(configuration["TF_BACKEND_JSON"]) | changes
+        configuration["TF_BACKEND_JSON"] = json.dumps(backend)
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(os.environ, configuration),
+            self.assertRaises(ValueError),
+        ):
+            MODULE.prepare_infrastructure(Path(temp))

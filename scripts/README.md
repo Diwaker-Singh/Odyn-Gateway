@@ -54,3 +54,7 @@ deletion order and cost verification.
 verified digest references, and encrypted saved-plan transfer. It does not use
 the interactive driver’s Owner-role requirement. See [delivery setup](../docs/delivery.md)
 for scoped OIDC identities, protected environments and private runner setup.
+
+The manual foundation workflow uses `delivery.py prepare-infrastructure` for
+bootstrap and registry roots, with separate durable management state. See
+[foundation provisioning](../docs/foundation-deployment.md) before configuring it.

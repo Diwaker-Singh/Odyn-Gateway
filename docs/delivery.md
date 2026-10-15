@@ -22,10 +22,15 @@ trust, publish images, or deploy the application. Existing CI and Pages remain
 independent. The current assessment deployment was published and deployed
 through operator commands; these workflows do not retroactively prove it.
 
+For one-time application state storage and registry provisioning, use the
+[foundation workflow](foundation-deployment.md) before these application steps.
+It uses a separate management backend and foundation identity.
+
 ## Workflow boundaries
 
 | File | Trigger and responsibility |
 |---|---|
+| `.github/workflows/infrastructure.yml` | Manual bootstrap or registry plan/apply, encrypted saved plan and protected foundation approval; disabled until configured. |
 | `.github/workflows/ci.yml` | Push/PR checks, package builds, image builds and vulnerability scans. No Azure login. |
 | `.github/workflows/release.yml` | Manual dispatch on main after successful push CI for the same commit. Builds amd64 images, scans them, then publishes through a protected environment. |
 | `.github/workflows/deploy.yml` | Manual dispatch on main with a successful release run ID for the same commit. Plans, presents resource actions and the saved-plan hash, then applies after environment approval. |
