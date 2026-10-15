@@ -7,22 +7,88 @@ usage, and emits telemetry. Provider and storage adapters sit behind narrow
 interfaces so the core remains testable without cloud credentials.
 
 ```mermaid
-flowchart LR
-  Caller[Human or workload] --> IdP[OIDC provider]
-  IdP -->|access token| Edge[API edge / WAF]
-  Edge --> HTTP[FastAPI adapter]
-  HTTP --> Core[Gateway pipeline]
-  Core --> JWT[RS256 / JWKS / scopes / roles]
-  Core --> Admission[Atomic admission + budgets]
-  Admission --> Store[Shared store adapter]
-  Core --> Provider[Provider adapter]
-  Provider --> Stub[Deterministic stub]
-  Provider --> API[Fixed HTTPS model endpoint]
-  Core --> OTel[OpenTelemetry SDK]
-  OTel --> Collector[OTel collector]
-  Collector --> Monitor[Metrics and traces backend]
-  SecretStore[Secret manager] -->|managed identity reference| Provider
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: false
+    background: "#FFFFFF"
+    primaryTextColor: "#102A43"
+    secondaryTextColor: "#102A43"
+    tertiaryTextColor: "#102A43"
+    textColor: "#102A43"
+    nodeTextColor: "#102A43"
+    titleColor: "#102A43"
+    clusterTextColor: "#102A43"
+    lineColor: "#64748B"
+    defaultLinkColor: "#64748B"
+    edgeLabelBackground: "#FFFFFF"
+---
+flowchart TB
+  subgraph Access["Client access and authentication"]
+    direction LR
+    subgraph Clients["Clients"]
+      direction TB
+      SPA["Hosted or local chat SPA"]
+      Local["Local browser + loopback Python proxy"]
+      Machine["Machine client"]
+    end
+    Entra["Microsoft Entra ID<br/>Human: authorization code + PKCE<br/>Machine: client credentials + certificate"]
+    Clients <-->|"Sign in / obtain access token"| Entra
+  end
+
+  subgraph Azure["Azure deployment"]
+    FD["Front Door Premium + WAF"]
+    APIM["API Management — JWT validation, CORS, routing"]
+    subgraph Runtime["Container Apps — internal environment"]
+      API["FastAPI gateway — RS256, scopes and roles"]
+      Policy["Atomic admission, provider dispatch and settlement"]
+      OTel["OpenTelemetry SDK"]
+      Collector["Collector sidecar — loopback OTLP"]
+      API --> Policy
+      API --> OTel
+      OTel --> Collector
+    end
+    Table["Table Storage — shared rate state and daily budgets"]
+    KV["Key Vault — provider credential"]
+    MI["Runtime managed identity"]
+    ACR["Container Registry — digest-pinned images"]
+    Monitor["Application Insights + Log Analytics"]
+    Ops["Workbook, alerts and action group"]
+    FD -->|"HTTPS"| APIM
+    APIM -->|"HTTPS over VNet"| API
+    Policy <-->|"ETag-conditional transactions"| Table
+    MI -.->|"Table data access"| Table
+    MI -.->|"Secret resolution in live mode"| KV
+    KV -.->|"Container Apps secret reference"| API
+    MI -.->|"Image pull permission"| ACR
+    ACR -.->|"Gateway and collector images"| Runtime
+    Collector --> Monitor
+    Runtime -.->|"Platform console logs"| Monitor
+    Monitor --> Ops
+  end
+
+  Clients -->|"Chat request — HTTPS + bearer token"| FD
+  Policy -->|"Live mode — fixed HTTPS endpoint"| OpenRouter["OpenRouter — configured model"]
+  Policy -->|"Stub mode"| Stub["Deterministic provider stub"]
+
+  classDef azure fill:#E6F2FF,stroke:#0078D4,color:#102A43,stroke-width:2px
+  classDef application fill:#E8F5E9,stroke:#2E7D32,color:#163A24,stroke-width:2px
+  classDef external fill:#FFF3E0,stroke:#C77800,color:#573500,stroke-width:2px
+  class Entra,FD,APIM,Table,KV,MI,ACR,Monitor,Ops azure
+  class SPA,Local,Machine,API,Policy,OTel,Collector,Stub application
+  class OpenRouter external
+  style Runtime fill:#F2F8FF,stroke:#0078D4,stroke-width:2px,color:#102A43
+  style Azure fill:#FAFCFF,stroke:#0078D4,color:#102A43
+  style Clients fill:#F1FAF2,stroke:#2E7D32,color:#163A24
+  style Access fill:#FAFAFA,stroke:#64748B,color:#1E293B
 ```
+
+**Colors:** blue = Azure-managed services and hosting platform; green = client
+and application components we implement, configure or package; amber = external
+model provider. The blue Container Apps boundary hosts our green gateway and
+collector components. OpenTelemetry is an integrated open-source SDK, and the
+collector is a custom-packaged open-source component.
 
 ## Request path
 
@@ -89,3 +155,12 @@ reservation retention/reconciliation, and partition capacity before raising
 traffic limits. Terminal reservation rows are retained for idempotence; no
 automated retention worker is implemented. Cleanup must preserve the retry and
 settlement window and must never refund an outcome that may have been billed.
+
+## Delivery boundary
+
+Application CI verifies source without Azure credentials. Separate, manually
+triggered release and deployment workflows use dedicated federated identities,
+verified image digests, and protected GitHub environments. The runtime identity
+has pull/data/secret permissions separately from automation. These workflows
+are disabled until configured and have not been cloud-tested; see
+[delivery setup](delivery.md).

@@ -1,0 +1,109 @@
+name: release-images
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: azure-image-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require passing CI for this exact source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion,event,headSha,status > "$RUNNER_TEMP/ci.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          runs = json.loads((Path(os.environ['RUNNER_TEMP']) / 'ci.json').read_text())
+          assert any(r['headSha'] == os.environ['GITHUB_SHA'] and r['event'] == 'push' and r['status'] == 'completed' and r['conclusion'] == 'success' for r in runs), 'Exact-source push CI must pass first'
+          PY
+      - run: docker build --platform linux/amd64 -f app/Dockerfile -t odyn-gateway:release .
+      - run: docker build --platform linux/amd64 -f infra/telemetry/Dockerfile -t odyn-collector:release infra/telemetry
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: odyn-gateway:release
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: odyn-collector:release
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Preserve the scanned images
+        run: |
+          mkdir -p .artifacts/delivery
+          docker image inspect odyn-gateway:release odyn-collector:release > .artifacts/delivery/images.json
+          docker save odyn-gateway:release odyn-collector:release -o .artifacts/delivery/images.tar
+          sha256sum .artifacts/delivery/images.tar > .artifacts/delivery/images.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scanned-runtime-images
+          path: .artifacts/delivery/
+          retention-days: 1
+          if-no-files-found: error
+  publish:
+    needs: build
+    environment: azure-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: actions/download-artifact@v4
+        with:
+          name: scanned-runtime-images
+          path: .artifacts/delivery/
+      - run: |
+          sha256sum -c .artifacts/delivery/images.sha256
+          docker load -i .artifacts/delivery/images.tar
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Check registry destination and authenticate
+        run: |
+          actual=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          test "$actual" = "$ACR_LOGIN_SERVER"
+          az acr login --name "$ACR_NAME"
+      - run: python scripts/delivery.py publish --directory .artifacts/delivery
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release
+          path: .artifacts/delivery/release.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Summarize publication
+        run: |
+          printf '### Verified release\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+          cat .artifacts/delivery/release.json >> "$GITHUB_STEP_SUMMARY"
+          printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Clear registry credentials
+        if: always()
+        run: |
+          docker logout "$ACR_LOGIN_SERVER" || true
+          rm -rf .artifacts/delivery

@@ -40,3 +40,17 @@ The local chat UI sends bounded requests to the configured gateway. It can
 incur provider charges; use only with a valid token, active model configuration
 and an explicitly approved spend limit. Local unit/integration tests use a
 stub or fake transport and do not call the provider.
+
+## Teardown
+
+`teardown.py` defaults to read-only inventory. Use its explicit execution flag
+and typed confirmation only when ready to remove the dedicated deployment.
+See the [teardown guide](../docs/teardown.md) for prerequisites, state recovery,
+deletion order and cost verification.
+
+## Automated delivery
+
+`delivery.py` supports the separate release/deploy workflows: image provenance,
+verified digest references, and encrypted saved-plan transfer. It does not use
+the interactive driver’s Owner-role requirement. See [delivery setup](../docs/delivery.md)
+for scoped OIDC identities, protected environments and private runner setup.

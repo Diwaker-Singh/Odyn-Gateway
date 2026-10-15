@@ -1,0 +1,170 @@
+name: deploy-azure
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful release-images run ID for this exact main commit
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: azure-application-deployment
+  cancel-in-progress: false
+# Private endpoints require a dedicated ephemeral runner inside the Azure network.
+# Never attach this runner to pull-request jobs or enable it before environment setup.
+defaults:
+  run:
+    shell: bash
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  ARM_USE_OIDC: 'true'
+  ARM_USE_AZUREAD: 'true'
+  TF_IN_AUTOMATION: 'true'
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true'
+    environment: azure-plan
+    runs-on: [self-hosted, linux, x64, odyn-azure]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      APPLICATION_TFVARS_JSON: ${{ secrets.APPLICATION_TFVARS_JSON }}
+      TF_BACKEND_JSON: ${{ secrets.TF_BACKEND_JSON }}
+      PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - name: Verify release source and workflow
+        env:
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          run_id = os.environ['RELEASE_RUN_ID']
+          assert run_id.isdigit(), 'Release run ID must be numeric'
+          r = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}"]))
+          assert r['path'] == '.github/workflows/release.yml' and r['head_sha'] == os.environ['GITHUB_SHA'] and r['head_branch'] == 'main' and r['conclusion'] == 'success' and r['event'] == 'workflow_dispatch', 'Release must be successful and match this exact source'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release
+          path: .artifacts/release/
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release_run_id }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Create and encrypt the saved plan
+        run: |
+          umask 077
+          export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
+          python scripts/delivery.py prepare --directory "$ODYN_DELIVERY_DIR" --release .artifacts/release/release.json
+          terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
+          terraform -chdir=infra/envs/dev/azure plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1
+          python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-saved-plan
+          path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/plan.enc
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove private temporary files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID" infra/envs/dev/azure/.terraform .artifacts/release
+  apply:
+    needs: plan
+    environment: azure-deploy
+    runs-on: [self-hosted, linux, x64, odyn-azure]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      APPLICATION_TFVARS_JSON: ${{ secrets.APPLICATION_TFVARS_JSON }}
+      TF_BACKEND_JSON: ${{ secrets.TF_BACKEND_JSON }}
+      PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+      HEALTH_URL: ${{ vars.HEALTH_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: encrypted-saved-plan
+          path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Verify and apply the exact saved plan
+        run: |
+          umask 077
+          export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
+          python scripts/delivery.py unseal --directory "$ODYN_DELIVERY_DIR"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['ODYN_DELIVERY_DIR'])
+          (p / 'backend.json').write_text(json.dumps(json.loads(os.environ['TF_BACKEND_JSON'])))
+          PY
+          terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
+          terraform -chdir=infra/envs/dev/azure apply -input=false "$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/apply.log" 2>&1
+      - name: Verify revision readiness and public health
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, time, urllib.parse, urllib.request
+          url = os.environ['HEALTH_URL']
+          u = urllib.parse.urlsplit(url)
+          assert u.scheme == 'https' and u.hostname and not u.username and not u.password and u.path == '/v1/healthz' and not u.query and not u.fragment
+          for _ in range(30):
+              apps = json.loads(subprocess.check_output(['az', 'containerapp', 'list', '-g', os.environ['AZURE_RESOURCE_GROUP'], '-o', 'json']))
+              assert len(apps) == 1, 'Expected one gateway app'
+              p = apps[0]['properties']
+              if p.get('latestRevisionName') and p.get('latestRevisionName') == p.get('latestReadyRevisionName'):
+                  with urllib.request.urlopen(url, timeout=10) as response:
+                      assert response.status == 200
+                  break
+              time.sleep(10)
+          else:
+              raise SystemExit('Revision readiness timed out; inspect Azure before retrying')
+          PY
+      - name: Remove private temporary files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID" infra/envs/dev/azure/.terraform

@@ -56,6 +56,26 @@ def main():
                 r"\b(terraform.*\b(?:plan|apply|destroy)|az\s+(?:login|keyvault)|set-provider-key|scripts/deploy)\b",
                 command,
             )
+    for filename, initial_job, protected_job, environment in (
+        ("release.yml", "build", "publish", "azure-release"),
+        ("deploy.yml", "plan", "apply", "azure-deploy"),
+    ):
+        delivery = yaml.safe_load((ROOT / ".github/workflows" / filename).read_text())
+        triggers = delivery.get("on", delivery.get(True))
+        assert list(triggers) == ["workflow_dispatch"]
+        assert delivery["permissions"] == {"contents": "read"}
+        assert delivery["concurrency"]["cancel-in-progress"] is False
+        jobs = delivery["jobs"]
+        assert "refs/heads/main" in jobs[initial_job]["if"]
+        assert "AZURE_DELIVERY_ENABLED" in jobs[initial_job]["if"]
+        assert jobs[protected_job]["needs"] == initial_job
+        assert jobs[protected_job]["environment"] == environment
+        assert jobs[protected_job]["permissions"]["id-token"] == "write"
+        for job in jobs.values():
+            for step in job["steps"]:
+                if step.get("uses", "").startswith("actions/upload-artifact"):
+                    assert ".tfplan" not in step["with"]["path"]
+                    assert ".tfvars" not in step["with"]["path"]
     for lock in (
         "requirements.lock",
         "requirements-runtime.lock",

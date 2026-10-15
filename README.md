@@ -5,21 +5,95 @@ Odyn Gateway is a Python API service that authenticates callers, applies shared 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  Client[Human or service client] --> IdP[OpenID Connect identity provider]
-  IdP -->|signed access token| Edge[Optional API edge]
-  Edge --> API[FastAPI gateway]
-  API --> Auth[JWT and permission validation]
-  Auth --> Admission[Shared atomic rate and budget admission]
-  Admission --> Store[Azure Table Storage]
-  Admission --> Provider[Provider adapter]
-  Provider --> Stub[Deterministic local stub]
-  Provider --> LLM[Configured HTTPS model API]
-  API --> Telemetry[OpenTelemetry]
-  Telemetry --> Collector[Local collector]
-  Collector --> Monitor[Azure Monitor / Application Insights]
-  Secrets[Key Vault via managed identity] --> Provider
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: false
+    background: "#FFFFFF"
+    primaryTextColor: "#102A43"
+    secondaryTextColor: "#102A43"
+    tertiaryTextColor: "#102A43"
+    textColor: "#102A43"
+    nodeTextColor: "#102A43"
+    titleColor: "#102A43"
+    clusterTextColor: "#102A43"
+    lineColor: "#64748B"
+    defaultLinkColor: "#64748B"
+    edgeLabelBackground: "#FFFFFF"
+---
+flowchart TB
+  subgraph Access["Client access and authentication"]
+    direction LR
+    subgraph Clients["Clients"]
+      direction TB
+      SPA["Hosted or local chat SPA"]
+      Local["Local browser + loopback Python proxy"]
+      Machine["Machine client"]
+    end
+    Entra["Microsoft Entra ID<br/>Human: authorization code + PKCE<br/>Machine: client credentials + certificate"]
+    Clients <-->|"Sign in / obtain access token"| Entra
+  end
+
+  subgraph Azure["Azure deployment"]
+    FD["Front Door Premium + WAF"]
+    APIM["API Management — JWT validation, CORS, routing"]
+    subgraph Runtime["Container Apps — internal environment"]
+      API["FastAPI gateway — RS256, scopes and roles"]
+      Policy["Atomic admission, provider dispatch and settlement"]
+      OTel["OpenTelemetry SDK"]
+      Collector["Collector sidecar — loopback OTLP"]
+      API --> Policy
+      API --> OTel
+      OTel --> Collector
+    end
+    Table["Table Storage — shared rate state and daily budgets"]
+    KV["Key Vault — provider credential"]
+    MI["Runtime managed identity"]
+    ACR["Container Registry — digest-pinned images"]
+    Monitor["Application Insights + Log Analytics"]
+    Ops["Workbook, alerts and action group"]
+    FD -->|"HTTPS"| APIM
+    APIM -->|"HTTPS over VNet"| API
+    Policy <-->|"ETag-conditional transactions"| Table
+    MI -.->|"Table data access"| Table
+    MI -.->|"Secret resolution in live mode"| KV
+    KV -.->|"Container Apps secret reference"| API
+    MI -.->|"Image pull permission"| ACR
+    ACR -.->|"Gateway and collector images"| Runtime
+    Collector --> Monitor
+    Runtime -.->|"Platform console logs"| Monitor
+    Monitor --> Ops
+  end
+
+  Clients -->|"Chat request — HTTPS + bearer token"| FD
+  Policy -->|"Live mode — fixed HTTPS endpoint"| OpenRouter["OpenRouter — configured model"]
+  Policy -->|"Stub mode"| Stub["Deterministic provider stub"]
+
+  classDef azure fill:#E6F2FF,stroke:#0078D4,color:#102A43,stroke-width:2px
+  classDef application fill:#E8F5E9,stroke:#2E7D32,color:#163A24,stroke-width:2px
+  classDef external fill:#FFF3E0,stroke:#C77800,color:#573500,stroke-width:2px
+  class Entra,FD,APIM,Table,KV,MI,ACR,Monitor,Ops azure
+  class SPA,Local,Machine,API,Policy,OTel,Collector,Stub application
+  class OpenRouter external
+  style Runtime fill:#F2F8FF,stroke:#0078D4,stroke-width:2px,color:#102A43
+  style Azure fill:#FAFCFF,stroke:#0078D4,color:#102A43
+  style Clients fill:#F1FAF2,stroke:#2E7D32,color:#163A24
+  style Access fill:#FAFAFA,stroke:#64748B,color:#1E293B
 ```
+
+**Colors:** blue = Azure-managed services and hosting platform; green = client
+and application components we implement, configure or package; amber = external
+model provider. The blue Container Apps boundary hosts our green gateway and
+collector components. OpenTelemetry is an integrated open-source SDK, and the
+collector is a custom-packaged open-source component.
+
+Clients obtain access tokens from Entra and send them to Front Door; Entra is
+not a proxy for chat requests. APIM validates JWTs at the edge, and the gateway
+validates identity and permissions again before shared admission. Dashed arrows
+show deployment, identity, secret and platform-log relationships. The cloud
+network boundaries shown here reflect the configured topology; their current
+validation limits are documented below.
 
 Azure is the primary adapter because Entra ID, managed identity, Key Vault,
 private networking, Table Storage and Azure Monitor fit the service's identity
@@ -54,7 +128,7 @@ runbooks](docs/runbooks/).
 
 ## Verification status
 
-The current Azure deployment is live on revision
+The Azure deployment was last verified on 11 October 2026, live on revision
 `ca-odyn-gateway-demo10--reasoningoff8cb4bd6`, with two replicas and the gateway
 image pinned to its verified ACR digest. After fixing a token-budget failure,
 an authenticated request from the hosted UI returned HTTP 200 through Front
@@ -65,7 +139,7 @@ stub mode. These checks demonstrate working paths, not full cloud acceptance.
 The remaining checks and their limits are in [cloud acceptance
 status](docs/cloud-acceptance-status.md).
 
-A fresh local review on 11 October 2026 passed 224 gateway tests, Ruff,
+A fresh local review on 14 October 2026 passed 245 gateway/tooling tests, Ruff,
 mypy, repository policy checks, 5 hosted UI configuration tests, and the hosted
 UI production build. Terraform configuration in all 4 roots passed the earlier
 release validation. GitHub Actions CI passed for source commit
@@ -97,8 +171,9 @@ make release
 `make release` runs local tests, formatting, types, package build, Terraform
 validation, policy/configuration checks and repository secret scanning. It does
 not contact Azure. Reports and local-only outputs are written under the ignored
-`.artifacts/` directory. GitHub Actions runs the same core checks and builds and
-scans both runtime images.
+`.artifacts/` directory. GitHub Actions CI runs the same core checks and builds and
+scans both runtime images. Release publication and Azure deployment are separate
+manual workflows, not part of pull-request CI.
 
 For Terraform validation, initialize each root with `-backend=false` and
 `-lockfile=readonly` before running `terraform validate`. Never check in state,
@@ -132,16 +207,25 @@ does not expose the OpenRouter key.
 Terraform environments and operator commands are documented in
 [`infra/envs/dev/README.md`](infra/envs/dev/README.md),
 [`infra/bootstrap/README.md`](infra/bootstrap/README.md), and
-[`scripts/README.md`](scripts/README.md). The deployment driver defaults to
+[`scripts/README.md`](scripts/README.md). The local deployment driver defaults to
 read-only preflight and requires an explicitly reviewed saved plan for changes.
+Separate manual [release and deployment workflows](docs/delivery.md) add
+OIDC-authenticated image publication and protected saved-plan application. They
+remain disabled until Azure trust, scoped identities, private runners and
+GitHub environment approvals are configured; they have not been cloud-tested.
 Use a least-privileged deployment identity, private state storage, and a
 separate runtime managed identity.
 
-The provider key is never a Terraform value or application setting. Store it in
-the platform secret manager and configure the runtime to resolve its secret
-reference through managed identity. The hidden-input helper
+The provider key is never supplied as a literal Terraform value or plaintext
+configuration entry. Store it in Key Vault; Container Apps resolves the secret
+reference through managed identity and injects it into the gateway process as
+`OPENROUTER_API_KEY` in live mode. The hidden-input helper
 `scripts/set-provider-key.sh` avoids echoing the value. Do not put secrets in
 source, command-line arguments, logs, screenshots, or chat.
+
+To remove the dedicated Azure deployment after the demo, follow the
+[teardown guide](docs/teardown.md). The teardown script defaults to preview
+and requires explicit confirmation before deletion.
 
 ## Repository layout
 
