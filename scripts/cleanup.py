@@ -101,8 +101,11 @@ def backend(name, d):
 
 def prepare(directory):
     d = driver()
+    print("Cleanup stage: verify identity", flush=True)
     context = binding(d)
+    print("Cleanup stage: inspect owned groups", flush=True)
     inventory = d.inspect()
+    print("Cleanup stage: validate recovery backends", flush=True)
     management = backend("BOOTSTRAP_BACKEND_JSON", d)
     registry = backend("REGISTRY_BACKEND_JSON", d)
     app = backend("TF_BACKEND_JSON", d)
@@ -127,6 +130,7 @@ def prepare(directory):
     ):
         # Fail closed on an unavailable/missing backend, including partial setup.
         # An operator must explicitly recover that case rather than skip state.
+        print(f"Cleanup stage: recover {name} state", flush=True)
         target = directory / f"{name}.tfstate"
         teardown.command(
             [
@@ -171,6 +175,7 @@ def prepare(directory):
     path.write_bytes(encrypted)
     os.chmod(path, 0o600)
     blob = f"recovery/{context['run']}/{hashlib.sha256(encrypted).hexdigest()}.enc"
+    print("Cleanup stage: upload encrypted durable recovery", flush=True)
     teardown.command(
         [
             "az",
@@ -251,7 +256,8 @@ def main():
         RuntimeError,
         subprocess.TimeoutExpired,
         InvalidTag,
-    ):
+    ) as error:
+        print(f"Cleanup failure category: {type(error).__name__}")
         # Provider messages/state can contain secrets; inspect privately, never log.
         print(
             "Cleanup stopped; deployment/state may be partial. Inspect privately before retrying."
