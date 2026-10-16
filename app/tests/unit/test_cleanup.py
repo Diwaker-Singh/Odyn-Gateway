@@ -212,6 +212,6 @@ class CleanupTests(unittest.TestCase):
             "management.yml",
         ):
             self.assertIn(
-                "group: azure-resource-mutation",
+                "azure-resource-mutation",
                 (ROOT / ".github/workflows" / name).read_text(),
             )

@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: azure-resource-mutation
+  group: ${{ inputs.validation_only && format('azure-validation-{0}', github.run_id) || 'azure-resource-mutation' }}
   cancel-in-progress: false
 jobs:
   validate:

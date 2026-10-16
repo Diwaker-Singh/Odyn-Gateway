@@ -14,6 +14,11 @@ cleanup workflows have **not been executed against Azure**. Cleanup validation
 does not delete the running service. Budget alerts and workflow timeouts are
 not hard Azure spending caps.
 
+Cloud-mutating workflows share one concurrency group. Dispatch them in order,
+waiting for completion: GitHub retains only one pending run per concurrency
+group, and a newer pending run cancels an older pending run even when active-run
+cancellation is disabled. Validation-only runs have unique concurrency groups.
+
 ## 1. Administrative trust and management state
 
 An administrator must initially configure GitHub OIDC trust and protected

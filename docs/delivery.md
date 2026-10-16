@@ -195,7 +195,7 @@ and [Azure Login](https://github.com/Azure/login).
 
 Management bootstrap, foundation provisioning, publication, application delivery
 and cleanup share `azure-resource-mutation` concurrency with cancellation disabled.
-Do not run operator writes alongside Actions. A workflow timeout is a failure to
+Validation-only dispatches use independent groups. Dispatch real mutations one at a time: GitHub keeps only one pending run in a concurrency group. Do not run operator writes alongside Actions. A workflow timeout is a failure to
 investigate; it does not guarantee Azure stopped an in-flight operation.
 Application apply now requires a clean second plan using the saved plan's exact
 variables, then readiness and public health/auth-rejection/CORS checks. These are
