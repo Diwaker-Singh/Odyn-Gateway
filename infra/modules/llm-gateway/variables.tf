@@ -234,3 +234,8 @@ variable "image_registry_id" {
   type        = string
   default     = ""
 }
+
+variable "vault_purge_protection" {
+  type    = bool
+  default = true
+}

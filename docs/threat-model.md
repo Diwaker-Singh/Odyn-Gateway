@@ -40,3 +40,8 @@ provider egress at the network layer, keep runtime ingress private behind the
 chosen edge, enable audit logs for secret and state access, and apply retention
 and alerting policies that fit the deployment. Validate denial and recovery
 paths from the deployed environment before relying on those controls.
+
+Vault purge protection defaults to enabled. Disposable assessment deployments
+may explicitly set `vault_purge_protection=false`; that exception does not
+represent a production recommendation. Enabling protection is irreversible
+until retention expires and must be a deliberate deployment decision.

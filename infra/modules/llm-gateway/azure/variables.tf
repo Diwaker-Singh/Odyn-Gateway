@@ -60,3 +60,8 @@ variable "browser_origins" { type = list(string) }
 variable "alert_notifications_enabled" { type = bool }
 
 variable "image_registry_id" { type = string }
+
+variable "vault_purge_protection" {
+  type    = bool
+  default = true
+}

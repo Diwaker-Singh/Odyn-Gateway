@@ -25,6 +25,11 @@ variable "resource_group_name" { type = string }
 variable "storage_account_name" { type = string }
 variable "location" { type = string }
 variable "operator_object_id" { type = string }
+variable "approved_subnet_ids" {
+  type        = list(string)
+  description = "Explicit private runner subnet IDs with Microsoft.Storage service endpoints."
+  default     = []
+}
 variable "approved_ipv4_ranges" {
   type      = list(string)
   sensitive = true
@@ -58,9 +63,10 @@ resource "azurerm_storage_account" "state" {
   public_network_access_enabled   = true
   tags                            = { project = "odyn-gateway", purpose = "terraform-state", managed_by = "terraform" }
   network_rules {
-    default_action = "Deny"
-    bypass         = ["None"]
-    ip_rules       = var.approved_ipv4_ranges
+    default_action             = "Deny"
+    bypass                     = ["None"]
+    ip_rules                   = var.approved_ipv4_ranges
+    virtual_network_subnet_ids = var.approved_subnet_ids
   }
   blob_properties {
     versioning_enabled = true

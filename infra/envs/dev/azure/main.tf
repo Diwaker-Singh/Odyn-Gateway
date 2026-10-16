@@ -20,6 +20,7 @@ terraform {
 module "llm_gateway" {
   source = "../../../modules/llm-gateway"
 
+  vault_purge_protection      = var.vault_purge_protection
   cloud                       = "azure"
   environment                 = var.environment
   location                    = var.location
@@ -116,4 +117,18 @@ variable "alert_notifications_enabled" {
 variable "image_registry_id" {
   type    = string
   default = ""
+}
+
+variable "vault_purge_protection" {
+  type    = bool
+  default = true
+}
+
+variable "subscription_id" {
+  type      = string
+  sensitive = true
+}
+variable "tenant_id" {
+  type      = string
+  sensitive = true
 }

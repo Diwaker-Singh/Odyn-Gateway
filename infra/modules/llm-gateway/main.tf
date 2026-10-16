@@ -1,7 +1,8 @@
 # Root dispatch: exactly one adapter per `cloud`. No resources here.
 module "azure" {
-  source = "./azure"
-  count  = var.cloud == "azure" ? 1 : 0
+  vault_purge_protection = var.vault_purge_protection
+  source                 = "./azure"
+  count                  = var.cloud == "azure" ? 1 : 0
 
   environment                 = var.environment
   location                    = var.location

@@ -116,7 +116,11 @@ Set the following secrets identically on `azure-plan` and `azure-deploy`:
 
 - `APPLICATION_TFVARS_JSON`: complete environment variables for the application
   Terraform root. Include explicit subscription/tenant, model/pricing, network,
-  identity and operational configuration. Image inputs are replaced with the
+  identity and operational configuration. `subscription_id` and `tenant_id`
+  explicitly bind the Terraform provider destination. `vault_purge_protection`
+  defaults to true; the existing disposable assessment must explicitly retain
+  its current false value unless enabling irreversible protection is intended.
+  Image inputs are replaced with the
   verified release digests. Include only the Key Vault secret **name**, never
   an OpenRouter key or any other credential value.
 - `TF_BACKEND_JSON`: Terraform backend configuration as JSON, including storage

@@ -1,4 +1,6 @@
 # Example vars — placeholders only. Never put secrets here.
+# subscription_id     = "<subscription-id>"
+# tenant_id           = "<tenant-id>"
 # cloud               = "azure"
 # environment         = "dev"
 # idp_issuer_url      = "https://login.microsoftonline.com/<tenant-id>/v2.0"
