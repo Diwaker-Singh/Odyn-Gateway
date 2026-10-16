@@ -4,6 +4,11 @@ Odyn Gateway is a Python API service that authenticates callers, applies shared 
 
 ## Architecture
 
+The [architecture review](docs/architecture-review.md) compares both interviewer
+briefs and recommends APIM as a single public edge for the updated scope.
+The current deployment diagram below retains Front Door/WAF; simplifying that
+running topology requires a separately tested pipeline migration.
+
 ```mermaid
 ---
 config:
@@ -144,13 +149,14 @@ stub mode. These checks demonstrate working paths, not full cloud acceptance.
 The remaining checks and their limits are in [cloud acceptance
 status](docs/cloud-acceptance-status.md).
 
-Local validation on 16 October 2026 passed 263 gateway/tooling tests, Ruff,
+Local validation on 16 October 2026 passed 278 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;
 all 4 roots passed the earlier release validation. GitHub Actions CI passed for source commit
-`fcb13361fc36736a5f3cd58267c70b77a9c4fd49`: [workflow run
-38135709389](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709389).
+`5ad4670a7c5202ffb1a4b1058b7083bd30f7aa5e`: [workflow run
+38882822180](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38882822180).
+Later workflow additions have separate validation and are not covered by that earlier run.
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
 evidence artifacts are kept outside the public source tree; the status document
 labels what was observed and what is still unproven.
@@ -219,14 +225,38 @@ Terraform environments and operator commands are documented in
 [`infra/bootstrap/README.md`](infra/bootstrap/README.md), and
 [`scripts/README.md`](scripts/README.md). The local deployment driver defaults to
 read-only preflight and requires an explicitly reviewed saved plan for changes.
-A manual [foundation workflow](docs/foundation-deployment.md) covers one-time
-state-storage and registry provisioning. Separate manual
-[release and deployment workflows](docs/delivery.md) add
-OIDC-authenticated image publication and protected saved-plan application. They
-remain disabled until Azure trust, scoped identities, private runners and
-GitHub environment approvals are configured; they have not been cloud-tested.
-Use a least-privileged deployment identity, private state storage, and a
-separate runtime managed identity.
+Use the [pipeline lifecycle guide](docs/pipeline-lifecycle.md) for complete
+bootstrapping, deployment, cleanup and recreation instructions:
+
+| Order | Workflow | Purpose |
+|---|---|---|
+| 1 | `management.yml` | Create durable automation state through ARM; no existing Terraform backend needed. |
+| 2 | `infrastructure.yml` — bootstrap | Create application state storage using the management backend. |
+| 3 | `infrastructure.yml` — registry | Provision the image registry. |
+| 4 | `release.yml` | Build, scan, publish and verify digest-pinned images. |
+| 5 | `deploy.yml` | Apply an approved saved plan, require a clean second plan and check readiness/public routing. |
+| As needed | `operations.yml` | Safe health checks or read-only cleanup inventory. |
+| When demo ends | `cleanup.yml` | Preserve encrypted state, then remove the four dedicated deployment groups after protected approval. |
+
+All cloud-mutating workflows default to validation only. Administrative OIDC
+trust, scoped roles, private runners, enable flags and environment approvals
+must be configured first. Cleanup needs an independent runner outside the
+application network; it is **not automatic** and has not deleted the demo.
+The static UI uses its separate Pages workflow.
+
+Actual Actions image publication and state-storage provisioning passed on
+16 October; registry provisioning and application Actions deployment remain
+unverified against Azure. The temporary test runner has been retired and delivery
+is disabled until an approved replacement is available. See [execution
+status](docs/workflow-coverage.md#execution-status--16-october-2026) for exact run links
+and the distinction between helper tests and actual cloud operations.
+
+Cleanup retains durable management storage and external runners, which can still
+cost money. To remove management storage too, export and verify state separately
+first. Recreate it with the management workflow and restore state before managing
+any surviving resources; an empty account is not state recovery. See the
+[lifecycle recovery steps](docs/pipeline-lifecycle.md#5-recreate-after-cleanup).
+Use a separate runtime managed identity and keep all real configuration private.
 
 The provider key is never supplied as a literal Terraform value or plaintext
 configuration entry. Store it in Key Vault; Container Apps resolves the secret
@@ -253,7 +283,7 @@ infra/artifacts/        container registry infrastructure
 infra/telemetry/        collector image/configuration and workbook
 scripts/                local validation, identity demos and operator tooling
 loadtest/               bounded local stub load scenario
-.github/workflows/      application CI and hosted UI deployment
+.github/workflows/      CI, bootstrap, release/deploy, operations, cleanup and Pages
 docs/                  architecture, engineering decisions, setup and runbooks
 ```
 

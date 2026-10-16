@@ -1,0 +1,44 @@
+name: Bootstrap automation state
+on:
+  workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Run helper tests without provisioning storage
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: azure-resource-mutation
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  provision:
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_MANAGEMENT_ENABLED == 'true' }}
+    environment: azure-management
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      MANAGEMENT_CONFIG_JSON: ${{ secrets.MANAGEMENT_CONFIG_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Create or reconcile durable automation state without needing an existing backend
+        run: python scripts/management.py --execute

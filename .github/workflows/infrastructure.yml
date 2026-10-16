@@ -15,7 +15,7 @@ permissions:
   contents: read
 # One foundation operation at a time; never cancel an active apply.
 concurrency:
-  group: azure-foundation-provisioning
+  group: azure-resource-mutation
   cancel-in-progress: false
 defaults:
   run:

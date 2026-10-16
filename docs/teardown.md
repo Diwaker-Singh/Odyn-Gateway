@@ -1,5 +1,17 @@
 # Remove the assessment deployment
 
+## Protected pipeline option
+
+For unattended execution use **Cleanup Azure deployment** (`cleanup.yml`). It
+has safe validation-only defaults, durable encrypted state recovery, an exact
+confirmation input, inventory/source/run/identity checks and a protected deletion
+gate. See [pipeline cleanup setup](pipeline-lifecycle.md#4-protected-cleanup--only-when-the-demo-can-stop).
+It deletes the same four groups as the operator script below. Management storage
+and external runners remain outside its scope and may continue costing money.
+The new workflow has automated safeguard tests; real deletion is not yet cloud-tested.
+
+## Interactive operator option
+
 Run from the repository root after the demo is no longer needed. This command
 is destructive: it removes the dedicated application, its managed Container
 Apps group, the registry (including all images), and Terraform state storage.

@@ -1,0 +1,108 @@
+name: Cleanup Azure deployment
+on:
+  workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Test safeguards without accessing or deleting Azure resources
+        type: boolean
+        default: true
+      target:
+        description: Deployment cleanup or explicitly configured disposable test target
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
+      confirmation:
+        description: 'For deletion: delete SUBSCRIPTION_ID rg-odyn-gateway-ENVIRONMENT'
+        type: string
+        required: false
+permissions:
+  contents: read
+# All Terraform mutations share this lock, including cleanup.
+concurrency:
+  group: azure-resource-mutation
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_ENVIRONMENT_SUFFIX: ${{ inputs.target == 'disposable' && vars.CLEANUP_TEST_ENVIRONMENT || vars.AZURE_ENVIRONMENT_SUFFIX }}
+  BOOTSTRAP_RESOURCE_GROUP: ${{ inputs.target == 'disposable' && vars.CLEANUP_TEST_STATE_GROUP || vars.BOOTSTRAP_RESOURCE_GROUP }}
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  snapshot:
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_CLEANUP_ENABLED == 'true' }}
+    environment: ${{ inputs.target == 'disposable' && 'azure-cleanup-test-plan' || 'azure-cleanup-plan' }}
+    # Must survive deletion of the application's VNet and resource groups.
+    runs-on: [self-hosted, linux, x64, odyn-cleanup]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      TF_BACKEND_JSON: ${{ secrets.TF_BACKEND_JSON }}
+      BOOTSTRAP_BACKEND_JSON: ${{ secrets.BOOTSTRAP_BACKEND_JSON }}
+      REGISTRY_BACKEND_JSON: ${{ secrets.REGISTRY_BACKEND_JSON }}
+      PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Inventory and preserve encrypted state outside deletion targets
+        run: python scripts/cleanup.py prepare --directory "$RUNNER_TEMP/cleanup-$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-cleanup-recovery
+          path: ${{ runner.temp }}/cleanup-${{ github.run_id }}/recovery.enc
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove private runner files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/cleanup-$GITHUB_RUN_ID"
+  delete:
+    needs: snapshot
+    environment: ${{ inputs.target == 'disposable' && 'azure-cleanup-test' || 'azure-cleanup' }}
+    runs-on: [self-hosted, linux, x64, odyn-cleanup]
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+      CLEANUP_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: actions/download-artifact@v4
+        with:
+          name: encrypted-cleanup-recovery
+          path: ${{ runner.temp }}/cleanup-${{ github.run_id }}/
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Verify approved inventory, delete in dependency order and verify absence
+        run: python scripts/cleanup.py execute --directory "$RUNNER_TEMP/cleanup-$GITHUB_RUN_ID"
+      - name: Remove private runner files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/cleanup-$GITHUB_RUN_ID"

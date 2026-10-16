@@ -66,3 +66,11 @@ runs bounded k6 checks and cleans up its child server. `cloud-smoke.py` checks
 public edge health, HSTS, authentication rejection and exact-origin CORS without
 sending a valid chat. See [workflow coverage](../docs/workflow-coverage.md) for
 Actions execution and the boundaries of interactive scripts.
+
+`management.py` bootstraps durable automation storage through ARM without an
+existing Terraform backend. `cleanup.py` is the protected Actions counterpart
+to interactive teardown: it saves encrypted state to retained management
+storage, binds deletion to reviewed inventory and the same source/run/identity,
+and requires typed confirmation plus an environment approval. See the
+[pipeline lifecycle guide](../docs/pipeline-lifecycle.md). These commands can
+create costs or delete resources when their explicit execution modes are used.

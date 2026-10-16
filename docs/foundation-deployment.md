@@ -3,9 +3,10 @@
 The manual `provision-foundation` workflow (`infrastructure.yml`) provisions
 one selected Terraform root: **bootstrap** for application state storage, or
 **registry** for runtime images. It is disabled unless
-`AZURE_FOUNDATION_ENABLED=true`. These automation paths have local tests but
-have not been executed against Azure. Adding the workflow does not create
-resources or change the running assessment deployment.
+`AZURE_FOUNDATION_ENABLED=true`. Actual bootstrap provisioning passed on 16 October 2026, including applying the
+saved plan and a clean second plan: [run 38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735).
+Registry provisioning has helper coverage but its real run was canceled before
+cloud planning when the spending window expired. It is not cloud-verified.
 
 Dispatch defaults to `validation_only=true`, which runs helper tests without
 Azure operations. Actual provisioning requires `validation_only=false` as well
@@ -13,7 +14,7 @@ as the enabled flag and configured foundation approvals.
 
 ## Sequence
 
-1. An administrator establishes GitHub OIDC trust, protected environments,
+1. Use [Bootstrap automation state](pipeline-lifecycle.md#1-administrative-trust-and-management-state) for durable management storage. An administrator establishes GitHub OIDC trust, protected environments,
    least-privileged identities, a private runner and durable management state.
 2. Run foundation provisioning with `component=bootstrap`; review the plan,
    approve, then confirm its second plan is clean.
@@ -46,8 +47,8 @@ additional protected GitHub environments:
   the plan summary exists, and main-only branch protection.
 
 Configure exact Azure federated subjects
-`repo:OWNER/REPO:environment:azure-foundation-plan` and
-`repo:OWNER/REPO:environment:azure-foundation-apply`. This foundation identity
+`repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:azure-foundation-plan` and
+`repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:azure-foundation-apply`. This foundation identity
 is separate from application runtime and normal application delivery. Creating
 resource groups requires subscription-level resource-group creation permission;
 bootstrap also creates a scoped Blob role assignment. Use a reviewed custom
@@ -113,3 +114,8 @@ future recovery even after assessment resource groups have been removed.
 
 Terraform backend behavior: [AzureRM backend](https://developer.hashicorp.com/terraform/language/backend/azurerm),
 [state locking](https://developer.hashicorp.com/terraform/language/state/locking).
+
+The management-state pipeline can recreate storage through ARM before Terraform
+initialization. This does not recreate lost state: restore a verified private
+snapshot before planning against resources that still exist. Keep management
+state out of application cleanup; see [lifecycle and recovery](pipeline-lifecycle.md).

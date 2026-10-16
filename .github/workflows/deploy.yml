@@ -13,7 +13,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: azure-application-deployment
+  group: azure-resource-mutation
   cancel-in-progress: false
 # Private endpoints require a dedicated ephemeral runner inside the Azure network.
 # Never attach this runner to pull-request jobs or enable it before environment setup.
@@ -153,6 +153,15 @@ jobs:
           PY
           terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
           terraform -chdir=infra/envs/dev/azure apply -input=false "$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/apply.log" 2>&1
+          terraform -chdir=infra/envs/dev/azure show -json "$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/applied-plan.json"
+          python - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          d = Path(os.environ['ODYN_DELIVERY_DIR'])
+          plan = json.loads((d / 'applied-plan.json').read_text())
+          (d / 'application.tfvars.json').write_text(json.dumps({k: v['value'] for k, v in plan['variables'].items()}))
+          PYCODE
+          terraform -chdir=infra/envs/dev/azure plan -input=false -detailed-exitcode -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" > "$ODYN_DELIVERY_DIR/second-plan.log" 2>&1
       - name: Verify revision readiness and public health
         run: |
           python - <<'PY'
@@ -172,6 +181,11 @@ jobs:
           else:
               raise SystemExit('Revision readiness timed out; inspect Azure before retrying')
           PY
+      - name: Verify public routing, HSTS, rejected authentication and CORS
+        env:
+          CHAT_URL: ${{ vars.ODYN_GATEWAY_CHAT_URL }}
+          CLIENT_ORIGIN: ${{ vars.ODYN_CLIENT_ORIGIN }}
+        run: python scripts/cloud-smoke.py --chat-url "$CHAT_URL" --origin "${CLIENT_ORIGIN:-https://diwaker-singh.github.io}"
       - name: Remove private temporary files
         if: always()
         run: rm -rf "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID" infra/envs/dev/azure/.terraform

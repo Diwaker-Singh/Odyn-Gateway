@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: azure-image-release
+  group: azure-resource-mutation
   cancel-in-progress: false
 jobs:
   validate:

@@ -15,12 +15,14 @@ flowchart LR
     Apply --> Health[Revision readiness and health smoke check]
 ```
 
-These workflows are implemented but **not configured or cloud-tested**. They
-are disabled unless repository variable `AZURE_DELIVERY_ENABLED` is exactly
-`true`. Adding their files does not provision infrastructure, establish Azure
-trust, publish images, or deploy the application. Existing CI and Pages remain
-independent. The current assessment deployment was published and deployed
-through operator commands; these workflows do not retroactively prove it.
+The workflows default to credential-free validation. Real cloud jobs require
+explicit enable flags, scoped OIDC identities, network access and protected
+environments. On 16 October 2026, actual image publication succeeded at
+[run 38883123756](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883123756).
+Application **Actions plan/apply has not yet been exercised**; the live demo was
+deployed through the operator path. Passing helper tests is not deployment proof.
+The temporary private test runner was retired after its authorized test window;
+reestablish an approved runner before enabling delivery again.
 
 For one-time application state storage and registry provisioning, use the
 [foundation workflow](foundation-deployment.md) before these application steps.
@@ -36,6 +38,8 @@ for script-by-script execution and current setup requirements.
 
 | File | Trigger and responsibility |
 |---|---|
+| `.github/workflows/management.yml` | Manual ARM bootstrap of durable automation storage; separate administrative identity and approval. |
+| `.github/workflows/cleanup.yml` | Manual encrypted recovery and protected resource-group deletion; disabled by default. |
 | `.github/workflows/infrastructure.yml` | Manual bootstrap or registry plan/apply, encrypted saved plan and protected foundation approval; disabled until configured. |
 | `.github/workflows/ci.yml` | Push/PR checks, package builds, image builds and vulnerability scans. No Azure login. |
 | `.github/workflows/release.yml` | Manual dispatch on main after successful push CI for the same commit. Builds amd64 images, scans them, then publishes through a protected environment. |
@@ -58,9 +62,14 @@ leave an image in ACR; investigate and clean it up instead of assuming rollback.
 
 ## Configure authentication and approvals
 
-Configure these prerequisites through a deliberate administrative setup:
+Configure these prerequisites through a deliberate administrative setup.
+Use the exact OIDC subject observed in Azure Login: this repository emits the
+immutable owner/repository-ID form shown below. Other repositories may use the
+older `repo:OWNER/REPO:environment:ENV` form. Never guess or broaden the trust
+pattern to work around a mismatch.
 
-1. Create a dedicated Azure publication identity with `AcrPush` scoped to the
+
+1. Create a dedicated Azure publication identity with `AcrPush` and registry metadata `Reader` scoped to the
    intended registry. For this module use a registry whose permission mode
    supports that role; ABAC-enabled registries need the appropriate repository
    roles and a reviewed workflow adjustment.
@@ -79,15 +88,16 @@ Configure these prerequisites through a deliberate administrative setup:
 4. Configure Azure federated credentials with issuer
    `https://token.actions.githubusercontent.com`, audience
    `api://AzureADTokenExchange`, and exact subjects
-   `repo:OWNER/REPO:environment:azure-release`,
-   `repo:OWNER/REPO:environment:azure-plan`, and
-   `repo:OWNER/REPO:environment:azure-deploy`. The release subject trusts the
+   `repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:azure-release`,
+   `repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:azure-plan`, and
+   `repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:azure-deploy`. The release subject trusts the
    publication identity; plan and apply trust the same deployment identity.
    Environment branch protection is necessary because these subjects identify
    environments rather than branches.
 5. Configure a dedicated **ephemeral** Linux amd64 runner labeled `odyn-azure`
    with connectivity to the private Azure endpoints and permitted state-storage
-   access. Provision Azure CLI, GitHub CLI, and the tools needed by the setup
+   access. Include `unzip`/`zstd`, Azure CLI, GitHub CLI and the runtime libraries
+   needed by the setup actions. Provision Azure CLI, GitHub CLI, and the tools needed by the setup
    actions. Do not expose this runner to PR jobs or share it with untrusted
    repositories. Hosted release runners access ACR's authenticated endpoint;
    private ACR publication requires a separately reviewed runner arrangement.
@@ -180,3 +190,14 @@ should additionally pin reviewed action commits and maintain those pins.
 References: [Azure OIDC setup](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect),
 [GitHub deployment environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments),
 and [Azure Login](https://github.com/Azure/login).
+
+## Mutation coordination and acceptance
+
+Management bootstrap, foundation provisioning, publication, application delivery
+and cleanup share `azure-resource-mutation` concurrency with cancellation disabled.
+Do not run operator writes alongside Actions. A workflow timeout is a failure to
+investigate; it does not guarantee Azure stopped an in-flight operation.
+Application apply now requires a clean second plan using the saved plan's exact
+variables, then readiness and public health/auth-rejection/CORS checks. These are
+safe smoke checks, not live provider, distributed limits, or alert-delivery proof.
+Use the [lifecycle guide](pipeline-lifecycle.md) for first setup and cleanup.
