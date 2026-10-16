@@ -17,7 +17,7 @@ not hard Azure spending caps.
 Cloud-mutating workflows share one concurrency group. Dispatch them in order,
 waiting for completion: GitHub retains only one pending run per concurrency
 group, and a newer pending run cancels an older pending run even when active-run
-cancellation is disabled. Validation-only runs have unique concurrency groups.
+cancellation is disabled. Validation-only runs have unique concurrency groups. The explicitly isolated disposable cleanup target has its own queue and test-only identity.
 
 ## 1. Administrative trust and management state
 
@@ -126,9 +126,12 @@ applications, provider registrations, Pages, management state or external runner
 Create protected main-only environments `azure-cleanup-plan` and `azure-cleanup`:
 
 - Same dedicated OIDC client ID in both; exact separate federation subjects.
-- Reader/delete permissions scoped to the four groups. Group deletion needs
-  permission for contained resources; use a reviewed custom role or scoped
-  Contributor. No automatic role-granting or lock removal is performed.
+- A custom role scoped to the four groups with `*/read` and
+  `Microsoft.Resources/subscriptions/resourceGroups/delete` only; no general
+  create/update or IAM/lock-removal rights. Azure authorizes group deletion
+  without individual contained-resource delete grants; see [Microsoft's deletion
+  model](https://learn.microsoft.com/azure/azure-resource-manager/management/delete-resource-group).
+  No automatic role-granting or lock removal is performed.
 - Blob Data Reader on application state; Blob Data Contributor on management
   storage for snapshot recovery/upload.
 - In `azure-cleanup-plan`, secrets `TF_BACKEND_JSON`, `BOOTSTRAP_BACKEND_JSON`,
@@ -172,6 +175,15 @@ completion. Already-absent groups are skipped, but an orphan managed group
 requires operator investigation when its ownership can no longer be established.
 
 ## 5. Recreate after cleanup
+
+Deleting a resource group also removes its scoped role assignments. An
+administrator must reestablish the required creation/deployment permissions
+before these pipelines can recreate that group. Their initial trust and
+permissions must be anchored outside the deleted environment; a workflow cannot
+grant itself access after its own scope disappears. The current demo identities
+are scoped to existing groups and require this administrative step after full
+cleanup. Do not compensate by granting subscription Owner to normal delivery.
+
 
 Retained foundation state will initially describe deleted resources. Preserve
 it, run a fresh foundation plan and review Terraform's refresh/recreation rather

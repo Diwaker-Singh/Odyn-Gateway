@@ -19,7 +19,7 @@ permissions:
   contents: read
 # All Terraform mutations share this lock, including cleanup.
 concurrency:
-  group: ${{ inputs.validation_only && format('azure-validation-{0}', github.run_id) || 'azure-resource-mutation' }}
+  group: ${{ inputs.validation_only && format('azure-validation-{0}', github.run_id) || inputs.target == 'disposable' && 'azure-disposable-cleanup' || 'azure-resource-mutation' }}
   cancel-in-progress: false
 defaults:
   run:

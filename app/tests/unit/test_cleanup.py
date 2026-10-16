@@ -215,3 +215,10 @@ class CleanupTests(unittest.TestCase):
                 "azure-resource-mutation",
                 (ROOT / ".github/workflows" / name).read_text(),
             )
+
+    def test_disposable_cleanup_has_an_independent_mutation_queue(self):
+        text = (ROOT / ".github/workflows/cleanup.yml").read_text()
+        self.assertIn(
+            "inputs.target == 'disposable' && 'azure-disposable-cleanup'", text
+        )
+        self.assertIn("'azure-resource-mutation'", text)
