@@ -20,3 +20,11 @@ least-privileged operator identity, inspect the destination and exact saved
 plan, and confirm cost/rollback scope before applying. Runtime identity
 permissions are separate from deployment permissions. See the module and
 [bootstrap guide](../../bootstrap/README.md).
+
+The chat-validation change adds an APIM service-level JSON schema via an
+incremental ARM deployment, then updates the API policy. Review those actions
+in the saved application plan. Keep `max_body_bytes` consistent across edge and
+runtime; the Azure adapter validates its supported range. After rollout, follow
+the [request-validation runbook](../../../docs/runbooks/request-validation.md),
+including preflight/readiness checks and proof that rejected inputs never reach
+the backend. Current local checks do not establish deployed APIM behavior.

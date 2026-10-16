@@ -1,0 +1,27 @@
+name: Delivery helper validation
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  helpers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - name: Validate operator and delivery safeguards without cloud credentials
+        env:
+          PYTHONPATH: app/src:app/tests
+        run: |
+          python -m unittest app.tests.unit.test_delivery app.tests.unit.test_teardown app.tests.unit.test_local_chat_ui app.tests.unit.test_cloud_smoke -v
+          python -m compileall -q scripts
+          bash -n scripts/deploy.sh scripts/set-provider-key.sh
+          python scripts/sso-demo.py --help
+          python scripts/teardown.py --help
+          python scripts/delivery.py --help

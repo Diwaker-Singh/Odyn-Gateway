@@ -26,6 +26,12 @@ For one-time application state storage and registry provisioning, use the
 [foundation workflow](foundation-deployment.md) before these application steps.
 It uses a separate management backend and foundation identity.
 
+Each manual delivery workflow now defaults to `validation_only=true`, running
+credential-free helper checks and skipping Azure jobs. Real publication or apply
+requires explicitly choosing `validation_only=false`, completed configuration,
+and protected environment approval. See [workflow coverage](workflow-coverage.md)
+for script-by-script execution and current setup requirements.
+
 ## Workflow boundaries
 
 | File | Trigger and responsibility |
@@ -148,7 +154,11 @@ local tooling. Never publish `terraform show -json` output as an artifact.
    hour; an expired plan requires a new dispatch/review. It never silently
    replans after approval. Terraform state locking protects against concurrent
    changes; external changes may make the saved plan stale and cause failure.
-6. Inspect readiness/health results. This smoke check performs no chat/provider
+6. For the new content-validation policy, ensure the saved plan includes the
+   schema deployment and policy update. After apply, perform the
+   [request-validation checks](runbooks/request-validation.md); health alone
+   cannot prove that malformed chat traffic is rejected before the backend.
+7. Inspect readiness/health results. This smoke check performs no chat/provider
    request and does not establish full cloud acceptance, global budgets, alert
    delivery, or inference throughput. Use targeted acceptance checks separately.
 

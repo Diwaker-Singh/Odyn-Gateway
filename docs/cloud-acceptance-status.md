@@ -79,3 +79,13 @@ Local tests, CI, Terraform validation, and prior stub-mode load results are
 separate from live cloud proof. Do not describe the remaining items above as
 passed. Raw plans, state, logs, prompts, responses, credentials, and private
 test transcripts remain outside the public repository.
+
+## Subsequent local policy change
+
+The repository now contains APIM chat content/schema validation. This change
+has passed local policy/schema and Terraform checks, but has not been applied
+to Azure. The historical cloud observations above do not validate this new
+policy. See [edge content validation](architecture.md#edge-content-validation)
+and the [validation runbook](runbooks/request-validation.md) for required
+post-deployment checks. The 17 shared schema fixtures and 259 passing gateway/
+tooling tests are local results, not additional cloud acceptance evidence.

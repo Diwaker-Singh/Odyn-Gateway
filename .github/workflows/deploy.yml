@@ -2,9 +2,13 @@ name: deploy-azure
 on:
   workflow_dispatch:
     inputs:
+      validation_only:
+        description: Run credential-free helper tests without publishing or applying
+        type: boolean
+        default: true
       release_run_id:
-        description: Successful release-images run ID for this exact main commit
-        required: true
+        description: Required for a real deployment; successful release-images run ID
+        required: false
         type: string
 permissions:
   contents: read
@@ -25,8 +29,11 @@ env:
   ARM_USE_AZUREAD: 'true'
   TF_IN_AUTOMATION: 'true'
 jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
   plan:
-    if: github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true'
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true' }}
     environment: azure-plan
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 20

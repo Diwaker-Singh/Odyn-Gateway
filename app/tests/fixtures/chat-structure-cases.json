@@ -1,0 +1,235 @@
+[
+  {
+    "name": "valid chat",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": true,
+    "application_status": null
+  },
+  {
+    "name": "unknown model remains business policy",
+    "payload": {
+      "model": "unconfigured-model",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": true,
+    "application_status": 422
+  },
+  {
+    "name": "unsupported role remains business policy",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "tool",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": true,
+    "application_status": 422
+  },
+  {
+    "name": "excessive token cap remains business policy",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 100000000
+    },
+    "edge_valid": true,
+    "application_status": 422
+  },
+  {
+    "name": "nonpositive token cap remains business policy",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 0
+    },
+    "edge_valid": true,
+    "application_status": 422
+  },
+  {
+    "name": "root array",
+    "payload": [],
+    "edge_valid": false,
+    "application_status": 400
+  },
+  {
+    "name": "missing model",
+    "payload": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "null messages",
+    "payload": {
+      "model": "default",
+      "messages": null,
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "empty messages",
+    "payload": {
+      "model": "default",
+      "messages": [],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "message is a string",
+    "payload": {
+      "model": "default",
+      "messages": [
+        "Hello"
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "missing content",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "nonstring content",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": 12
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "empty content",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": ""
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "boolean tokens",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": true
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "string tokens",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": "64"
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "extra root field",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "max_tokens": 64,
+      "stream": true
+    },
+    "edge_valid": false,
+    "application_status": 422
+  },
+  {
+    "name": "extra message field",
+    "payload": {
+      "model": "default",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello",
+          "name": "extra"
+        }
+      ],
+      "max_tokens": 64
+    },
+    "edge_valid": false,
+    "application_status": 422
+  }
+]

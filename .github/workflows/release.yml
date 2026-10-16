@@ -1,14 +1,22 @@
 name: release-images
 on:
   workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Run credential-free helper tests without publishing or applying
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
   group: azure-image-release
   cancel-in-progress: false
 jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
   build:
-    if: github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true'
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

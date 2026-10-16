@@ -16,6 +16,7 @@ The broader release command and its prerequisites are documented in the README.
 | Retain reservations for uncertain outcomes | A read timeout does not prove the provider did no work. Retention favors spend safety and may temporarily deny otherwise affordable requests. |
 | Retry only proven pre-send failures | Avoids duplicate inference charges after a response, timeout, or reset. Bounded jitter and retries consume the original request deadline. |
 | One deadline across body, admission, and provider | Slow storage cannot give provider dispatch a fresh full timeout. Lock acquisition and Table transport calls receive the remaining budget. Transport deadlines remain subject to SDK and network behavior. |
+| Early structural rejection with independent application validation | APIM filters malformed chat input; the application owns model, role and token policy. A small schema avoids copying deployment-specific business rules into edge policy. Shared fixtures check the boundary; cloud enforcement awaits rollout. |
 | Explicit cloud adapters | Local doubles make policy failures reproducible; Azure runtime does not silently fall back to memory, fixture authentication, or local credentials. AWS remains a documented skeleton. |
 
 Azure was chosen for integrated Entra identity, managed identity, Key Vault,
@@ -46,8 +47,11 @@ feature parity.
   that prompt content and secrets do not appear in telemetry.
 - **Deployment contracts:** configuration tests check policy ordering, exact
   CORS origins, emitted dashboard dimensions, alert/runbook wiring, and Table
-  endpoint normalization. These tests detect regressions in source; they do
-  not replace effective cloud enforcement tests.
+  endpoint normalization. Shared [request fixtures](../app/tests/fixtures/chat-structure-cases.json)
+  are checked against the edge JSON Schema by `make configs` and against the
+  application by `make test`. Deliberate business-rule failures must pass the
+  structural schema and still fail application validation. These tests detect
+  regressions in source; they do not replace effective cloud enforcement tests.
 
 Some integration tests use real HTTP/ASGI and SDK-facing adapters with isolated
 fake dependencies. They prove component interaction, not Azure transaction
@@ -92,3 +96,6 @@ restriction, deployment identity separation, direct-origin enforcement, and
 infrastructure idempotence still need the cloud proof recorded in the status
 document. These limits are part of the design review, not hidden by passing
 unit tests.
+
+For the edge/app validation split, schema lifecycle and deployment caveats,
+see [edge content validation](architecture.md#edge-content-validation).

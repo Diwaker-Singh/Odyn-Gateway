@@ -60,7 +60,7 @@ export function gentle() {
 export function burst() {
   const r = post(__ENV.AUTH_TOKEN_A);
   const wellformed429 =
-    r.status === 429 && Number(r.headers['Retry-After']) >= 1;
+    r.status === 429 && /^[1-9][0-9]*$/.test(String(r.headers['Retry-After']));
   if (r.status === 429) seen429.add(1);
   check(r, {
     'burst: 200 or 429+Retry-After': (x) => x.status === 200 || wellformed429,

@@ -8,11 +8,49 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify pinned official workflow linter and validate Actions syntax
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          gh release download v1.7.11 --repo rhysd/actionlint --pattern actionlint_1.7.11_linux_amd64.tar.gz --pattern actionlint_1.7.11_checksums.txt --dir "$RUNNER_TEMP/actionlint"
+          (cd "$RUNNER_TEMP/actionlint" && sha256sum --ignore-missing -c actionlint_1.7.11_checksums.txt)
+          tar -xzf "$RUNNER_TEMP/actionlint/actionlint_1.7.11_linux_amd64.tar.gz" -C "$RUNNER_TEMP/actionlint" actionlint
+          "$RUNNER_TEMP/actionlint/actionlint" -shellcheck=
+
+  delivery-helpers:
+    uses: ./.github/workflows/validate-delivery.yml
+
+  local-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '2.3.0'
+      - name: Exercise real loopback HTTP admission and throttling
+        run: python scripts/test-local-load.py
+
   python-tests:
     # Hashed lock install (lock exists); unittest discovers all suites.
     runs-on: ubuntu-latest
@@ -89,6 +127,10 @@ jobs:
       - run: terraform -chdir=infra/bootstrap validate
       - run: terraform -chdir=infra/artifacts init -backend=false -lockfile=readonly
       - run: terraform -chdir=infra/artifacts validate
+      - name: Exercise the operator preflight wrapper without cloud access
+        env:
+          PY: python3
+        run: bash scripts/deploy.sh preflight
 
   tflint:
     runs-on: ubuntu-latest
@@ -134,8 +176,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
       - run: docker build -f app/Dockerfile -t odyn-gateway:ci .
       - run: docker build -f infra/telemetry/Dockerfile -t odyn-collector:ci infra/telemetry
+      - name: Verify platform, source parity and isolated container smoke
+        run: python scripts/image-check.py --gateway odyn-gateway:ci --collector odyn-collector:ci
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "odyn-collector:ci"

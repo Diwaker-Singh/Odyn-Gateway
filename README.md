@@ -37,7 +37,7 @@ flowchart TB
 
   subgraph Azure["Azure deployment"]
     FD["Front Door Premium + WAF"]
-    APIM["API Management — JWT validation, CORS, routing"]
+    APIM["API Management — JWT, JSON validation, CORS, routing"]
     subgraph Runtime["Container Apps — internal environment"]
       API["FastAPI gateway — RS256, scopes and roles"]
       Policy["Atomic admission, provider dispatch and settlement"]
@@ -104,6 +104,11 @@ parity.
 
 Key design choices:
 
+- APIM content validation rejects oversized, non-JSON and structurally invalid
+  chat requests before forwarding. The application retains complete validation
+  and business policy. This addition is validated locally and awaits cloud
+  rollout; see [edge validation](docs/architecture.md#edge-content-validation).
+
 - RS256 JWT validation with trusted issuer, audience, time claims and bounded
   JWKS refresh; delegated scopes and application roles are handled separately.
 - Continuous per-principal and global token buckets, plus daily token/spend
@@ -139,10 +144,11 @@ stub mode. These checks demonstrate working paths, not full cloud acceptance.
 The remaining checks and their limits are in [cloud acceptance
 status](docs/cloud-acceptance-status.md).
 
-Local validation on 15 October 2026 passed 252 gateway/tooling tests, Ruff,
+Local validation on 16 October 2026 passed 263 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
-validation passed 5 configuration tests and the production build. Terraform configuration in all 4 roots passed the earlier
-release validation. GitHub Actions CI passed for source commit
+validation passed 5 configuration tests and the production build. The module
+and Azure environment passed Terraform validation after the edge-policy change;
+all 4 roots passed the earlier release validation. GitHub Actions CI passed for source commit
 `fcb13361fc36736a5f3cd58267c70b77a9c4fd49`: [workflow run
 38135709389](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709389).
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
@@ -201,6 +207,10 @@ in the [hosted chat UI guide](docs/hosted-chat-ui.md). The Entra redirect and
 exact-origin APIM preflight are configured, and the authenticated browser-to-chat
 path has been smoke-tested against the live provider. Hosting the static files
 does not expose the OpenRouter key.
+
+The [workflow coverage guide](docs/workflow-coverage.md) maps operator scripts
+to CI, credential-free validation and manual cloud workflows, including the
+interactive steps intentionally retained for human sign-in and secret entry.
 
 ## Deployment and secrets
 

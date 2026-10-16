@@ -69,13 +69,15 @@ resource "azurerm_api_management_api_policy" "chat" {
   api_management_name = azurerm_api_management.main.name
   resource_group_name = azurerm_resource_group.main.name
   xml_content = templatefile("${path.module}/policy.xml.tftpl", {
-    issuer       = var.idp_issuer_url
-    audience     = var.idp_audience
-    burst        = var.global_burst
-    cors_origins = var.browser_origins
-    backend      = azurerm_container_app.main.ingress[0].fqdn
-    frontdoor_id = azurerm_cdn_frontdoor_profile.main.resource_guid
+    issuer         = var.idp_issuer_url
+    audience       = var.idp_audience
+    burst          = var.global_burst
+    cors_origins   = var.browser_origins
+    backend        = azurerm_container_app.main.ingress[0].fqdn
+    frontdoor_id   = azurerm_cdn_frontdoor_profile.main.resource_guid
+    max_body_bytes = var.max_body_bytes
   })
+  depends_on = [azurerm_resource_group_template_deployment.chat_schema]
 }
 
 resource "azurerm_user_assigned_identity" "api" {

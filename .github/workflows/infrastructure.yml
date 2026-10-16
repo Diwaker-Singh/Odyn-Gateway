@@ -2,6 +2,10 @@ name: provision-foundation
 on:
   workflow_dispatch:
     inputs:
+      validation_only:
+        description: Run credential-free helper tests without publishing or applying
+        type: boolean
+        default: true
       component:
         description: Dedicated foundation component to plan and provision
         required: true
@@ -26,8 +30,11 @@ env:
   ARM_USE_AZUREAD: 'true'
   TF_IN_AUTOMATION: 'true'
 jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
   plan:
-    if: github.ref == 'refs/heads/main' && vars.AZURE_FOUNDATION_ENABLED == 'true'
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_FOUNDATION_ENABLED == 'true' }}
     environment: azure-foundation-plan
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 20

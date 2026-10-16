@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tomllib
 import yaml
+from jsonschema import Draft4Validator
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -50,8 +51,10 @@ def main():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     assert workflow.get("permissions") == {"contents": "read"}
     for job in workflow["jobs"].values():
-        for step in job["steps"]:
+        for step in job.get("steps", []):
             command = step.get("run", "")
+            if command.strip() == "bash scripts/deploy.sh preflight":
+                continue  # Explicit local-only wrapper; never permits plan/apply.
             assert not re.search(
                 r"\b(terraform.*\b(?:plan|apply|destroy)|az\s+(?:login|keyvault)|set-provider-key|scripts/deploy)\b",
                 command,
@@ -74,14 +77,50 @@ def main():
             else "AZURE_DELIVERY_ENABLED"
         )
         assert feature_flag in jobs[initial_job]["if"]
+        assert "!inputs.validation_only" in jobs[initial_job]["if"]
+        assert jobs[initial_job]["needs"] == "validate"
+        assert jobs["validate"]["uses"] == "./.github/workflows/validate-delivery.yml"
+        assert (
+            triggers["workflow_dispatch"]["inputs"]["validation_only"]["default"]
+            is True
+        )
         assert jobs[protected_job]["needs"] == initial_job
         assert jobs[protected_job]["environment"] == environment
         assert jobs[protected_job]["permissions"]["id-token"] == "write"
         for job in jobs.values():
-            for step in job["steps"]:
+            for step in job.get("steps", []):
                 if step.get("uses", "").startswith("actions/upload-artifact"):
                     assert ".tfplan" not in step["with"]["path"]
                     assert ".tfvars" not in step["with"]["path"]
+    operations = yaml.safe_load((ROOT / ".github/workflows/operations.yml").read_text())
+    triggers = operations.get("on", operations.get(True))
+    assert list(triggers) == ["workflow_dispatch"]
+    assert triggers["workflow_dispatch"]["inputs"]["validation_only"]["default"] is True
+    assert operations["permissions"] == {"contents": "read"}
+    inventory = operations["jobs"]["inventory"]
+    assert inventory["environment"] == "azure-operations"
+    assert "AZURE_OPERATIONS_ENABLED" in inventory["if"]
+    assert "!inputs.validation_only" in inventory["if"]
+    commands = "\n".join(step.get("run", "") for step in inventory["steps"])
+    assert "scripts/teardown.py" in commands and "--execute" not in commands
+    helper = yaml.safe_load(
+        (ROOT / ".github/workflows/validate-delivery.yml").read_text()
+    )
+    assert helper["permissions"] == {"contents": "read"}
+    assert all(
+        "azure/login" not in step.get("uses", "")
+        for step in helper["jobs"]["helpers"]["steps"]
+    )
+    schema = json.loads(
+        (ROOT / "infra/modules/llm-gateway/azure/chat-request.schema.json").read_text()
+    )
+    Draft4Validator.check_schema(schema)
+    validator = Draft4Validator(schema)
+    cases = json.loads(
+        (ROOT / "app/tests/fixtures/chat-structure-cases.json").read_text()
+    )
+    for case in cases:
+        assert validator.is_valid(case["payload"]) == case["edge_valid"], case["name"]
     for lock in (
         "requirements.lock",
         "requirements-runtime.lock",

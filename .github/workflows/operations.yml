@@ -1,0 +1,67 @@
+name: Operational checks
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Read-only operational check
+        type: choice
+        options: [health, teardown-preview]
+        default: health
+      validation_only:
+        description: Validate helpers without making any cloud requests
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: azure-operational-checks
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  health:
+    needs: validate
+    if: ${{ !inputs.validation_only && inputs.action == 'health' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - name: Check public health, HSTS, authentication rejection and CORS
+        env:
+          CHAT_URL: ${{ vars.ODYN_GATEWAY_CHAT_URL }}
+        run: python scripts/cloud-smoke.py --chat-url "$CHAT_URL" --origin "https://diwaker-singh.github.io"
+  inventory:
+    needs: validate
+    if: ${{ !inputs.validation_only && inputs.action == 'teardown-preview' && github.ref == 'refs/heads/main' && vars.AZURE_OPERATIONS_ENABLED == 'true' }}
+    environment: azure-operations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Inventory dedicated groups without executing deletion
+        env:
+          SUBSCRIPTION: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ENVIRONMENT_SUFFIX: ${{ vars.AZURE_ENVIRONMENT_SUFFIX }}
+          STATE_GROUP: ${{ vars.BOOTSTRAP_RESOURCE_GROUP }}
+        run: |
+          python scripts/teardown.py --subscription "$SUBSCRIPTION" --tenant "$TENANT" --environment "${ENVIRONMENT_SUFFIX:-demo10}" --state-group "${STATE_GROUP:-rg-odyn-gateway-tfstate}"

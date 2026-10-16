@@ -258,7 +258,7 @@ class AzureConfigurationRegressionTests(unittest.TestCase):
         self.assertIn('allow-credentials="false"', policy)
         self.assertIn("<origin>${origin}</origin>", policy)
         self.assertNotIn("<origin>*</origin>", policy)
-        self.assertIn("cors_origins = var.browser_origins", main)
+        self.assertRegex(main, r"cors_origins\s*= var\.browser_origins")
         shared = (ROOT / "infra/modules/llm-gateway/variables.tf").read_text()
         self.assertIn('variable "browser_origins"', shared)
         self.assertIn(

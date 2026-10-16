@@ -8,7 +8,9 @@ confirmation guards before use.
 - `make test` runs unit, integration and contract suites.
 - `make fmt` and `make lint` run Ruff formatting/lint and mypy.
 - `make policy` checks repository and Terraform invariants.
-- `make configs` parses supported configuration and policy files.
+- `make configs` parses supported configuration and policy files, validates
+  the edge JSON Schema, and checks shared request fixtures using the locked
+  scan environment. It does not execute the APIM policy engine.
 - `make release` runs the local build and static validation suite; it makes no
   cloud calls. Local reports are placed under ignored `.artifacts/`.
 - `scripts/scan_repo.py` checks Git source files and available history
@@ -58,3 +60,9 @@ for scoped OIDC identities, protected environments and private runner setup.
 The manual foundation workflow uses `delivery.py prepare-infrastructure` for
 bootstrap and registry roots, with separate durable management state. See
 [foundation provisioning](../docs/foundation-deployment.md) before configuring it.
+
+`test-local-load.py` starts the loopback stub, creates short-lived fixture tokens,
+runs bounded k6 checks and cleans up its child server. `cloud-smoke.py` checks
+public edge health, HSTS, authentication rejection and exact-origin CORS without
+sending a valid chat. See [workflow coverage](../docs/workflow-coverage.md) for
+Actions execution and the boundaries of interactive scripts.

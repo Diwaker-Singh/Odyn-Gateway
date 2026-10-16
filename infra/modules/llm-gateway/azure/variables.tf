@@ -12,7 +12,13 @@ variable "delegated_scope" { type = string }
 variable "machine_app_role" { type = string }
 variable "allowed_algorithms" { type = list(string) }
 variable "model_allowlist" { type = map(string) }
-variable "max_body_bytes" { type = number }
+variable "max_body_bytes" {
+  type = number
+  validation {
+    condition     = var.max_body_bytes >= 1 && var.max_body_bytes <= 4194304 && floor(var.max_body_bytes) == var.max_body_bytes
+    error_message = "APIM content validation requires a whole-byte limit between 1 and 4 MiB."
+  }
+}
 variable "max_tokens_ceiling" { type = number }
 variable "per_principal_rps" { type = number }
 variable "per_principal_burst" { type = number }

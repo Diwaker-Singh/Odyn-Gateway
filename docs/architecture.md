@@ -39,7 +39,7 @@ flowchart TB
 
   subgraph Azure["Azure deployment"]
     FD["Front Door Premium + WAF"]
-    APIM["API Management — JWT validation, CORS, routing"]
+    APIM["API Management — JWT, JSON validation, CORS, routing"]
     subgraph Runtime["Container Apps — internal environment"]
       API["FastAPI gateway — RS256, scopes and roles"]
       Policy["Atomic admission, provider dispatch and settlement"]
@@ -164,3 +164,48 @@ verified image digests, and protected GitHub environments. The runtime identity
 has pull/data/secret permissions separately from automation. These workflows
 are disabled until configured and have not been cloud-tested; see
 [delivery setup](delivery.md).
+
+## Edge content validation
+
+The repository policy now validates only `POST /v1/chat`, after origin/JWT
+checks and the coarse edge throttle. Health, readiness and CORS preflight do
+not require a chat body. This source change has **not been deployed or tested
+in APIM**; the last cloud verification predates it.
+
+APIM requires `application/json` (case-insensitive, with charset parameters
+accepted), enforces the configured `max_body_bytes`, and checks the small
+service-level schema in `chat-request.schema.json`. It requires an object with
+`model`, `messages` and integer `max_tokens`, typed message fields and no extra
+properties. The application independently validates actual body bytes and the
+complete request, then enforces supported roles, model allowlists, token limits,
+permissions and shared budgets. The edge schema deliberately has no model enum
+or deployment-specific token ceiling.
+
+A size-only validation stage maps oversized bodies to 413; unsupported media
+types return 415; malformed JSON or structural schema failures return 400.
+Application semantic failures continue to return 422. Both layers use the
+safe error envelope and request ID; raw validation details are not returned
+or explicitly traced by the policy. Missing/broken deployed schemas can also
+cause validation failure, so operators must investigate unexpected 400 spikes
+rather than assuming every rejection is a caller mistake.
+
+AzureRM 4.14.0 has no service-level schema resource, so a small incremental ARM
+deployment creates the JSON schema before the API policy references it. The
+shared byte limit is constrained to APIM's supported 1-byte through 4-MiB range.
+The edge size check follows APIM's transport handling; the application retains
+its streamed-body bound for requests whose declared length is absent or wrong.
+
+Local contract tests check scope, ordering, size wiring, dependency order and
+safe errors. `make configs` uses the locked scan environment's JSON Schema
+validator against shared positive/negative fixtures; `make test` checks those
+fixtures against application validation. These checks do not emulate the APIM
+policy engine. After an approved rollout, verify valid chat, malformed JSON,
+wrong types, missing/extra fields, charset content types, oversized/chunked
+bodies, preflight and readiness. Verify rejected requests never reach the
+backend, and measure validation overhead with a stub backend before raising
+traffic limits.
+
+Operational checks and troubleshooting: [request-validation runbook](runbooks/request-validation.md).
+
+References: [Microsoft validate-content policy](https://learn.microsoft.com/en-us/azure/api-management/validate-content-policy),
+[service-level JSON schema resource](https://learn.microsoft.com/en-us/rest/api/apimanagement/global-schema/create-or-update?view=rest-apimanagement-2024-05-01).

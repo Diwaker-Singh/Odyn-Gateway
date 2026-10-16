@@ -7,6 +7,10 @@ one selected Terraform root: **bootstrap** for application state storage, or
 have not been executed against Azure. Adding the workflow does not create
 resources or change the running assessment deployment.
 
+Dispatch defaults to `validation_only=true`, which runs helper tests without
+Azure operations. Actual provisioning requires `validation_only=false` as well
+as the enabled flag and configured foundation approvals.
+
 ## Sequence
 
 1. An administrator establishes GitHub OIDC trust, protected environments,
