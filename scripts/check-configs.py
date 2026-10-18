@@ -50,6 +50,12 @@ def main():
         parsed += 1
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     assert workflow.get("permissions") == {"contents": "read"}
+    plugin_init = next(
+        step
+        for step in workflow["jobs"]["tflint"]["steps"]
+        if "--init" in step.get("run", "")
+    )
+    assert plugin_init["env"]["GITHUB_TOKEN"] == "${{ github.token }}"
     for job in workflow["jobs"].values():
         for step in job.get("steps", []):
             command = step.get("run", "")

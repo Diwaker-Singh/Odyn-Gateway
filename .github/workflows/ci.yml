@@ -142,6 +142,8 @@ jobs:
         with:
           tflint_version: "v0.55.1" # matches the local toolchain
       - run: tflint --chdir=infra/modules/llm-gateway --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: tflint --chdir=infra/modules/llm-gateway
 
   checkov:

@@ -28,6 +28,14 @@ explicit limits. Local success is not cloud proof.
   Actions path. Production role minimization and independent-review governance
   still need environment-specific review.
 
+- [Independent execution test 39163453137](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137)
+  passed validation, runner creation, the self-hosted tool/credential-isolation
+  probe and automatic retirement on 19 October. Test infrastructure, registration,
+  temporary identity/permissions and expiring test secrets were removed. The
+  original live revision remained ready, with HTTP 200/HSTS afterward. Full
+  topology cold recreation and the persistent GitHub App/bootstrap trust path
+  are not established by this isolated test.
+
 ## Historical application observations
 
 These observations predate the latest pipeline rollout and were not repeated
@@ -82,7 +90,7 @@ configuration contains public client settings and the gateway endpoint. The
 provider credential remains in Key Vault; no secret value belongs in source,
 state outputs, logs, recordings or CI output.
 
-Local revalidation on 19 October passed 279 tests plus formatting, types,
+Local revalidation on 19 October passed 305 tests plus formatting, types,
 configuration, repository policy, compilation and secret checks. Those checks,
 image scans and historical application observations do not close the remaining
 cloud limits above. Raw state, plans, logs, credentials and private transcripts

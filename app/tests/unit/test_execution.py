@@ -496,3 +496,29 @@ class LifecycleTests(unittest.TestCase):
             self.assertRaises(RuntimeError),
         ):
             self.module.dispatch("management.yml", {}, 999999999)
+
+    def test_source_race_preserves_execution_instead_of_killing_unknown_child(self):
+        env = {
+            "GITHUB_REPOSITORY": "owner/repo",
+            "GITHUB_SHA": "old",
+            "GITHUB_RUN_ID": "1",
+        }
+        responses = [
+            {"sha": "old"},
+            None,
+            [
+                {
+                    "databaseId": 9,
+                    "displayTitle": "management lifecycle-1-run",
+                    "headSha": "new",
+                    "status": "in_progress",
+                    "conclusion": "",
+                }
+            ],
+        ]
+        with (
+            patch.dict(os.environ, env),
+            patch.object(self.module, "gh", side_effect=responses),
+            self.assertRaises(self.module.ActiveChildError),
+        ):
+            self.module.dispatch("management.yml", {}, 999999999)

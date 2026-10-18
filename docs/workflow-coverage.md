@@ -68,7 +68,9 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 
 | Operation | Actual result |
 |---|---|
-| Exact-source CI | [39157467177](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157467177), 12/12 jobs passed for `3b7dcdd`, including image scans. |
+| Exact-source CI | [Latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain); inspect the run source SHA and all 12 jobs, including image scans. |
+| Private execution bootstrap | [39163453137](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137), passed all four jobs for `19686c4`: validation, isolated runner creation, tool/credential-isolation probe and automatic retirement. |
+| Lifecycle controller | [39163289856](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163289856), validation-only dispatch passed; orchestration/skip/source/failure guards have local tests. Full topology recreation has not run. |
 | Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
 | Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
 | Resource inventory | [38883061100](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883061100), passed with Reader OIDC. |
@@ -103,3 +105,20 @@ remain restricted to the target groups. With that permission the same cleanup
 path passed, including absence checks after scoped role assignments disappeared.
 Encrypted recovery was also verified privately before deletion; no plain state
 or key was published.
+
+### Independent execution test scope
+
+The 19 October execution test used a temporary OIDC principal with Contributor
+only on its disposable execution group and subscription-level group metadata
+read/create permission. It used expiring registration/removal tokens; no general
+GitHub credential was persisted. The GitHub App minting path, restoration of
+delivery grants after full cleanup, and optional application peering/private-DNS
+paths were not exercised by this fixture. Those remain acceptance work for a
+fully configured cold recreation.
+
+The probe caught a missing HOME in the managed-command environment; startup now
+supplies an explicit clean user environment. Fresh-backend, CLI compatibility,
+lease ownership and skipped-cloud-job failures have regression guards. All test
+resources, registrations, temporary permissions/identity and test secrets were
+removed, and mutation flags were disabled. The unchanged live revision returned
+HTTP 200 with HSTS afterward. No provider call or live resource deletion occurred.

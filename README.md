@@ -152,13 +152,13 @@ These checks demonstrate working paths, not full cloud acceptance. See
 [cloud acceptance status](docs/cloud-acceptance-status.md) and
 [workflow execution status](docs/workflow-coverage.md#execution-status).
 
-Local revalidation on 19 October 2026 passed 279 gateway/tooling tests, Ruff,
+Local revalidation on 19 October 2026 passed 305 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;
-all 4 roots passed the earlier release validation. GitHub Actions CI passed 12/12 jobs for the tested source `3b7dcdd`: [workflow run
-39157467177](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157467177).
-See [latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain) for subsequent documentation commits.
+all 4 roots passed the earlier release validation. The 12-job GitHub Actions
+suite covers the tested source revision shown in each run; see
+[latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain).
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
 evidence artifacts are kept outside the public source tree; the status document
 labels what was observed and what is still unproven.
@@ -232,6 +232,7 @@ bootstrapping, deployment, cleanup and recreation instructions:
 
 | Order | Workflow | Purpose |
 |---|---|---|
+| Entry point | `lifecycle.yml` | Sequence setup at one main revision, require real component success and retire execution. |
 | 0 | `execution.yml` | Create bounded independent private execution and restore configured group-scoped permissions. |
 | 1 | `management.yml` | Create durable automation state through ARM; no existing Terraform backend needed. |
 | 2 | `infrastructure.yml` — bootstrap | Create application state storage using the management backend. |
@@ -252,7 +253,8 @@ on completion. One-time administrator federation, scoped bootstrap authority,
 GitHub App setup, environment configuration and provider-secret entry remain
 required. See the [recreation contract](docs/pipeline-lifecycle.md#recreation-contract).
 Full cold recreation of the complete topology is not yet established by the
-component workflow tests.
+component workflow tests. [Independent execution passed its full disposable
+creation/probe/retirement test](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137).
 
 Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
 second plan and public smoke checks. [Disposable cleanup passed end to end](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129),

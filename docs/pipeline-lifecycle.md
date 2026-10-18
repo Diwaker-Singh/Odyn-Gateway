@@ -29,6 +29,7 @@ The operating model is pipeline-driven recreation after one-time administrative
 trust and environment configuration. `execution.yml` now implements independent
 private execution and scoped destination-group permission restoration;
 `lifecycle.yml` sequences the component workflows at the same main revision.
+[Independent execution passed its disposable creation/probe/retirement test](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137).
 A full cold recreation of the complete Azure topology remains a separate
 acceptance test, rather than a claim established by helper tests.
 
@@ -79,13 +80,15 @@ permissions. Establish that authority once through the administrator, with
 reviewed role conditions / policy appropriate to the subscription. The helper's
 allowlist is defense in depth, not an Azure authorization boundary. Ordinary
 application delivery cannot grant itself access. Never use subscription Owner.
-The temporary test identity has narrower fixture-only permissions and is not a
-persistent production bootstrap identity.
+The temporary test identity had narrower fixture-only permissions and was
+removed after testing; it is not a persistent production bootstrap identity.
 
 For unattended runner registration, configure `RUNNER_APP_ID` and secret
 `RUNNER_APP_PRIVATE_KEY` for a GitHub App installed only on this repository with
-Administration: write. The workflow mints a short-lived installation token.
-The bounded integration test can instead use expiring secrets
+Administration: write. The workflow mints a short-lived installation token. Registration tokens also
+expire; finish protected gates promptly and retire/restart an expired lease
+after any active apply finishes. Never inject the App private key into the VM.
+The bounded integration test used expiring secrets
 `RUNNER_REGISTRATION_TOKEN` and `RUNNER_REMOVAL_TOKEN`; never store a general
 GitHub CLI credential. Azure receives registration/removal tokens through
 protected Run Command parameters, never VM custom data. Runner downloads are

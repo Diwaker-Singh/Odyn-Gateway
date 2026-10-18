@@ -120,8 +120,6 @@ def dispatch(workflow, inputs, deadline):
             repo,
             "--workflow",
             workflow,
-            "--commit",
-            sha,
             "--event",
             "workflow_dispatch",
             "--limit",
@@ -129,9 +127,11 @@ def dispatch(workflow, inputs, deadline):
             "--json",
             "databaseId,displayTitle,headSha,status,conclusion",
         )
-        matches = [
-            r for r in runs if r["displayTitle"] == title and r["headSha"] == sha
-        ]
+        matches = [r for r in runs if r["displayTitle"] == title]
+        if any(run["headSha"] != sha for run in matches):
+            raise ActiveChildError(
+                "Main moved during dispatch; inspect child source before retiring execution"
+            )
         if len(matches) > 1:
             raise ActiveChildError(
                 "Ambiguous component dispatch; inspect runs before retrying"

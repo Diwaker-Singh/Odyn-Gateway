@@ -85,6 +85,15 @@ cloud load success remain distinct claims.
 
 ## Production boundaries
 
+Pipeline tests also check the boundary between orchestration and actual work:
+an overall green run with a skipped cloud job is rejected. An empty Terraform
+backend is established through authenticated Blob metadata, rather than by
+ignoring a failed state command. Private-runner probes caught an unset home
+directory in Azure's command environment; startup now supplies a clean user
+environment. Failure cleanup is bound to its own lease and preserves execution
+when an applying child cannot be confirmed stopped. These checks target recovery
+and isolation, rather than relying only on successful provisioning.
+
 The implementation is a bounded assessment service, with production-oriented
 security and failure handling. It is not a complete production platform.
 Before expanding traffic, add a measured in-flight concurrency cap and a safe
@@ -92,8 +101,8 @@ reservation retention/reconciliation process; measure hot-partition capacity
 and define service objectives. The circuit breaker is process-local. Issued
 bearer tokens are not immediately revoked, price-based reservations are not a
 billing ledger, and multi-region recovery is not implemented. Effective egress
-restriction, deployment identity separation, direct-origin enforcement, and
-infrastructure idempotence still need the cloud proof recorded in the status
+restriction, end-to-end diagnostic correlation, direct-origin enforcement, and
+full cold recreation still need the cloud proof recorded in the status
 document. These limits are part of the design review, not hidden by passing
 unit tests.
 
