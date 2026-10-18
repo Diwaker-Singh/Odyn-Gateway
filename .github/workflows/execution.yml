@@ -73,7 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.runner-app.outputs.token }}
         if: ${{ failure() && inputs.action != 'stop' }}
-        run: python scripts/execution.py stop
+        run: python scripts/execution.py stop --only-run "$GITHUB_RUN_ID"
   probe:
     needs: execution
     if: ${{ !inputs.validation_only && inputs.action == 'test' }}

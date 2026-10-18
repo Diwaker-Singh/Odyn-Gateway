@@ -112,8 +112,12 @@ gh workflow run lifecycle.yml -f validation_only=true
 gh workflow run lifecycle.yml -f validation_only=false
 ```
 
-A VM lease is at most 55 minutes; the controller has a bounded setup deadline
-and a separate retirement allowance. VM auto-shutdown limits compute if a job
+A VM lease is at most 180 minutes; the controller defaults to a 50-minute
+setup deadline and accepts `setup_minutes` from 10 to 150, with a separate
+retirement allowance. Match the execution lease to the entire approved setup /
+retirement window. Cold APIM provisioning may need longer than the default;
+changing a timeout does not authorize additional spending. The disposable test
+uses a 20-minute lease and does not extend its approved one-hour cost window. VM auto-shutdown limits compute if a job
 is interrupted, but does not remove disks or IPs. Cancellation, unavailable
 approvers or a failed retirement can still require the protected stop workflow.
 Workflow timeouts and Azure alerts are not spending caps. Preserve recovery

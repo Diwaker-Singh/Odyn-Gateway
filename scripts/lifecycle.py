@@ -58,6 +58,10 @@ def gh(*args):
         ["gh", *args], capture_output=True, text=True, timeout=60, check=False
     )
     if result.returncode:
+        if args[:2] in (("run", "list"), ("run", "view"), ("run", "cancel")):
+            raise ActiveChildError(
+                "Child status is unknown; preserve execution and inspect the component run"
+            )
         raise RuntimeError("Lifecycle GitHub operation failed; inspect component runs")
     if args[0] != "api" and args[:2] not in (("run", "list"), ("run", "view")):
         return None  # Dispatch/cancel print human-readable output rather than JSON.
@@ -129,7 +133,7 @@ def dispatch(workflow, inputs, deadline):
             r for r in runs if r["displayTitle"] == title and r["headSha"] == sha
         ]
         if len(matches) > 1:
-            raise ValueError(
+            raise ActiveChildError(
                 "Ambiguous component dispatch; inspect runs before retrying"
             )
         if matches:
@@ -202,11 +206,14 @@ def recreate(minutes):
     deadline = time.monotonic() + minutes * 60
     release = None
     safe_to_retire = True
+    execution_started = False
     try:
         for workflow, inputs in stages():
             if workflow == "deploy.yml":
                 inputs = inputs | {"release_run_id": str(release)}
             result = dispatch(workflow, inputs, deadline)
+            if workflow == "execution.yml":
+                execution_started = True
             if workflow == "release.yml":
                 release = result
     except ActiveChildError:
@@ -216,14 +223,14 @@ def recreate(minutes):
         # Stop remains a separate protected workflow and runs from GitHub's
         # hosted runner, even when application networking failed. Give retirement
         # its own time allowance; this does not extend provider or load approval.
-        if safe_to_retire:
+        if safe_to_retire and execution_started:
             dispatch("execution.yml", {"action": "stop"}, time.monotonic() + 20 * 60)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
-    parser.add_argument("--minutes", type=int, default=50, choices=range(10, 56))
+    parser.add_argument("--minutes", type=int, default=50, choices=range(10, 151))
     args = parser.parse_args()
     if args.execute:
         recreate(args.minutes)

@@ -6,6 +6,10 @@ on:
         description: Validate orchestration without dispatching Azure workflows
         type: boolean
         default: true
+      setup_minutes:
+        description: Approved setup deadline, 10–150 minutes; execution lease must cover setup and retirement
+        type: number
+        default: 50
 permissions:
   contents: read
 concurrency:
@@ -19,7 +23,7 @@ jobs:
     if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_LIFECYCLE_ENABLED == 'true' }}
     environment: azure-lifecycle
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 180
     permissions:
       contents: read
       actions: write
@@ -34,4 +38,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LIFECYCLE_FLAGS_JSON: ${{ toJSON(vars) }}
-        run: python scripts/lifecycle.py --execute
+          SETUP_MINUTES: ${{ inputs.setup_minutes }}
+        run: python scripts/lifecycle.py --execute --minutes "$SETUP_MINUTES"

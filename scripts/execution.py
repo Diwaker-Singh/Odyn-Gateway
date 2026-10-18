@@ -48,8 +48,8 @@ def config():
     network = ipaddress.ip_network(value["network"], strict=True)
     if network.version != 4 or not network.is_private or network.prefixlen != 24:
         raise ValueError("Use a dedicated private /24 execution network")
-    if not 10 <= value["minutes"] <= 55:
-        raise ValueError("Execution lifetime must be 10–55 minutes")
+    if not isinstance(value["minutes"], int) or not 10 <= value["minutes"] <= 180:
+        raise ValueError("Execution lifetime must be 10–180 whole minutes")
     subscription = os.environ["AZURE_SUBSCRIPTION_ID"]
     uuid.UUID(subscription)
     uuid.UUID(os.environ["AZURE_TENANT_ID"])
@@ -382,6 +382,7 @@ def start(value):
         "--tags",
         "project=odyn-gateway",
         f"managed_by={OWNER}",
+        f"execution_run={os.environ['GITHUB_RUN_ID']}",
     )
     deadline = int(time.time()) + value["minutes"] * 60
     az(
@@ -561,10 +562,16 @@ def start(value):
     raise RuntimeError("Runner readiness timed out; run protected stop workflow")
 
 
-def stop(value):
+def stop(value, only_run=None):
     group = value["group"]
     if az("group", "exists", "-n", group):
         owned(group)
+        if (
+            only_run
+            and az("group", "show", "-n", group).get("tags", {}).get("execution_run")
+            != only_run
+        ):
+            raise ValueError("Failed start cannot retire another workflow's lease")
         # A token-only test cannot enumerate runner registrations. Remove the
         # registration inside the VM before deleting it instead.
         if not os.environ.get("GH_TOKEN") and os.environ.get("RUNNER_REMOVAL_TOKEN"):
@@ -631,10 +638,16 @@ def stop(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("start", "stop"))
+    parser.add_argument(
+        "--only-run", help="Failure cleanup may retire only this workflow's lease"
+    )
     args = parser.parse_args()
     value = config()
     identity()
-    (start if args.action == "start" else stop)(value)
+    if args.action == "start":
+        start(value)
+    else:
+        stop(value, only_run=args.only_run)
 
 
 if __name__ == "__main__":

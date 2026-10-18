@@ -52,6 +52,15 @@ deletion order and cost verification.
 
 ## Automated delivery
 
+`execution.py` creates/removes independent private execution and restores only
+configured destination-group grants. `lifecycle.py` dispatches the protected
+component workflows in dependency order and binds deployment to its publication
+run. Use `execution.yml` / `lifecycle.yml`, rather than running these outside
+their configured pipeline identities. Initial GitHub App/federation authorization
+and environment configuration remain administrator responsibilities; see the
+[pipeline lifecycle guide](../docs/pipeline-lifecycle.md#recreation-contract).
+Default validation makes no cloud changes. Explicit execution can incur costs.
+
 `delivery.py` supports the separate release/deploy workflows: image provenance,
 verified digest references, and encrypted saved-plan transfer. It does not use
 the interactive driver’s Owner-role requirement. See [delivery setup](../docs/delivery.md)

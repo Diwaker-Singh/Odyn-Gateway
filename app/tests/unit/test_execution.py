@@ -42,7 +42,7 @@ class ExecutionTests(unittest.TestCase):
         for field, value in (
             ("group", "rg-production"),
             ("network", "8.8.8.0/24"),
-            ("minutes", 180),
+            ("minutes", 999),
             ("network", "10.0.0.0/8"),
         ):
             config = self.config() | {field: value}
@@ -240,6 +240,19 @@ class ExecutionTests(unittest.TestCase):
             M.start(self.config())
         self.assertFalse(any("create" in call.args for call in az.call_args_list))
 
+    def test_failed_start_cannot_delete_another_runs_lease(self):
+        responses = [
+            True,
+            {"tags": {"managed_by": M.OWNER}},
+            {"tags": {"execution_run": "earlier"}},
+        ]
+        with (
+            patch.object(M, "az", side_effect=responses) as az,
+            self.assertRaises(ValueError),
+        ):
+            M.stop(self.config(), only_run="new")
+        self.assertFalse(any("delete" in call.args for call in az.call_args_list))
+
 
 class GroupAdoptionTests(unittest.TestCase):
     @classmethod
@@ -433,6 +446,17 @@ class LifecycleTests(unittest.TestCase):
                 side_effect=self.module.ActiveChildError("apply still active"),
             ) as dispatch,
             self.assertRaises(self.module.ActiveChildError),
+        ):
+            self.module.recreate(30)
+        self.assertEqual(dispatch.call_count, 1)
+
+    def test_failed_start_does_not_retire_existing_execution(self):
+        with (
+            patch.dict(os.environ, {"GITHUB_REF": "refs/heads/main"}),
+            patch.object(
+                self.module, "dispatch", side_effect=RuntimeError("start refused")
+            ) as dispatch,
+            self.assertRaises(RuntimeError),
         ):
             self.module.recreate(30)
         self.assertEqual(dispatch.call_count, 1)
