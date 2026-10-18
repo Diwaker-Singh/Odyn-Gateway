@@ -16,7 +16,7 @@ live deployment automatically.
 | `image-check.py`, `source_fingerprint.py` | CI builds runtime images, verifies source/platform parity and runs isolated non-root smoke checks. |
 | `delivery.py` | Unit tests exercise provenance, destination checks, encryption/tampering/expiry, foundation preparation and fake publication. Real commands run only in configured release, foundation and application workflows. |
 | `deploy.sh`, `deploy.py` | CI executes the default local preflight wrapper after backend-free Terraform initialization. Guarded operator plan/apply paths have regression tests; real CI delivery uses `delivery.py` and scoped federation instead of the Owner-bound legacy driver. |
-| `management.py` | Secure ARM template, destination and configuration unit tests; manual management-state workflow, Azure execution pending. |
+| `management.py` | Secure ARM template, destination and configuration unit tests; manual management-state workflow; real isolated Azure storage creation passed. |
 | `cleanup.py` | Encryption, approval expiry/source/run/identity binding, inventory drift, confirmation, durable recovery and ordered-deletion tests; manual protected cleanup workflow, real deletion not exercised. |
 | `teardown.py` | Unit tests mock cloud calls and deletion/recovery failures. Operational Actions offers read-only inventory. The separate protected cleanup workflow uses its ownership and ordered-deletion methods after durable encrypted state recovery. |
 | `serve_stub.py`, `test-local-load.py`, `k6-limits.js` | CI starts a loopback fixture server and runs the bounded two-principal load scenario. Fixture tokens never authenticate against Azure or the live provider. |
@@ -61,23 +61,24 @@ optional repository variables `AZURE_ENVIRONMENT_SUFFIX` and
 `BOOTSTRAP_RESOURCE_GROUP` override the assessment defaults. Inventory needs no
 delete permissions and never passes `--execute` to teardown.
 
-## Execution status — 16 October 2026
+## Execution status
+
+Cloud delivery was exercised on 16–17 October 2026 (IST).
 
 | Operation | Actual result |
 |---|---|
-| Exact-source CI | [38882822180](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38882822180), passed for `5ad4670`. |
-| Image publication | [38883123756](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883123756), passed; published and verified both images. |
+| Exact-source CI | [38948431452](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38948431452), passed for `bedebb9`. |
+| Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
 | Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
 | Resource inventory | [38883061100](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883061100), passed with Reader OIDC. |
 | Public health | [38881528968](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38881528968), passed without valid chat/provider calls. |
-| Registry provisioning | Helper validation passed; real run canceled before planning after the test window expired. |
-| Application Actions deployment | Helper validation passed; actual Actions plan/apply still pending. |
-| Management bootstrap and cleanup workflows | Local automated safeguards and validation-only dispatch; real Azure execution pending. No application cleanup has run. |
+| Registry provisioning | [38945392647](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945392647), saved no-change plan applied and second plan clean. |
+| Application Actions deployment | [38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780), passed for `7bca5c1`; reviewed saved plan, clean second plan, revision readiness and public health/auth/CORS. |
+| Management bootstrap | [38945385264](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945385264), actual isolated storage creation passed. |
+| Cleanup | Safeguard validation passed; disposable Azure execution failed safely at inventory; metadata-read permissions are now configured and a cloud retest is pending. No live application cleanup has run. |
 
 The successful cloud runs refer to the exact source linked above, not subsequent
-workflow edits. The temporary test runner has been removed; Azure delivery must
-stay disabled until replacement private execution is configured and an execution
-window is approved. The existing application is retained. OIDC trust used exact
+workflow edits. The first temporary runner was removed. The renewed independent-VNet test VM is now deallocated; disk/IP cleanup remains. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
 observed immutable owner/repository-ID subjects. The initial test found and fixed
 missing runner tools, an OIDC subject mismatch, and missing registry metadata
 Reader access; these were not application deployment tests.

@@ -111,8 +111,8 @@ Key design choices:
 
 - APIM content validation rejects oversized, non-JSON and structurally invalid
   chat requests before forwarding. The application retains complete validation
-  and business policy. This addition is validated locally and awaits cloud
-  rollout; see [edge validation](docs/architecture.md#edge-content-validation).
+  and business policy. The schema and policy were deployed through Actions; malformed-body
+  behavior has local fixture coverage, with authenticated edge replay still pending; see [edge validation](docs/architecture.md#edge-content-validation).
 
 - RS256 JWT validation with trusted issuer, audience, time claims and bounded
   JWKS refresh; delegated scopes and application roles are handled separately.
@@ -138,24 +138,27 @@ runbooks](docs/runbooks/).
 
 ## Verification status
 
-The Azure deployment was last verified on 11 October 2026, live on revision
-`ca-odyn-gateway-demo10--reasoningoff8cb4bd6`, with two replicas and the gateway
-image pinned to its verified ACR digest. After fixing a token-budget failure,
-an authenticated request from the hosted UI returned HTTP 200 through Front
-Door and the provider dependency also returned HTTP 200. Human and machine
-Entra sign-in have both been demonstrated. One controlled authentication alert
-reached Azure Monitor and its action group; one two-replica load run passed in
-stub mode. These checks demonstrate working paths, not full cloud acceptance.
-The remaining checks and their limits are in [cloud acceptance
-status](docs/cloud-acceptance-status.md).
+The latest Actions deployment passed on 17 October 2026 (IST), on revision
+`ca-odyn-gateway-demo10--0000008`. It applied the reviewed saved plan, required a
+clean second plan, and checked readiness, public routing, HSTS, authentication
+rejection and CORS. Read-only checks on 19 October confirmed the latest revision
+is ready, APIM has succeeded, and the request-schema deployment has succeeded.
 
-Local validation on 16 October 2026 passed 278 gateway/tooling tests, Ruff,
+Earlier authenticated hosted-UI/provider inference, human and machine Entra
+sign-in and one controlled alert were demonstrated on 11 October. They were not
+repeated by this pipeline rollout. The two-replica load result used a stub
+backend; it is not live inference throughput or complete global-budget proof.
+These checks demonstrate working paths, not full cloud acceptance. See
+[cloud acceptance status](docs/cloud-acceptance-status.md) and
+[workflow execution status](docs/workflow-coverage.md#execution-status).
+
+Local revalidation on 19 October 2026 passed 279 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;
 all 4 roots passed the earlier release validation. GitHub Actions CI passed for source commit
-`5ad4670a7c5202ffb1a4b1058b7083bd30f7aa5e`: [workflow run
-38882822180](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38882822180).
+`bedebb9`: [workflow run
+38948431452](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38948431452).
 Later workflow additions have separate validation and are not covered by that earlier run.
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
 evidence artifacts are kept outside the public source tree; the status document
@@ -244,11 +247,12 @@ must be configured first. Cleanup needs an independent runner outside the
 application network; it is **not automatic** and has not deleted the demo.
 The static UI uses its separate Pages workflow.
 
-Actual Actions image publication and state-storage provisioning passed on
-16 October; registry provisioning and application Actions deployment remain
-unverified against Azure. The temporary test runner has been retired and delivery
-is disabled until an approved replacement is available. See [execution
-status](docs/workflow-coverage.md#execution-status--16-october-2026) for exact run links
+Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
+second plan and public smoke checks. Disposable cleanup still awaits a passing
+cloud retest; live cleanup has not run. The temporary test VM is deallocated; its disk/IP cleanup and a disposable
+cleanup retest remain to be completed. Future cloud execution needs an approved
+window and private runner. See [execution
+status](docs/workflow-coverage.md#execution-status) for exact run links
 and the distinction between helper tests and actual cloud operations.
 
 Cleanup retains durable management storage and external runners, which can still

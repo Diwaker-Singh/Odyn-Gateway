@@ -18,11 +18,15 @@ flowchart LR
 The workflows default to credential-free validation. Real cloud jobs require
 explicit enable flags, scoped OIDC identities, network access and protected
 environments. On 16 October 2026, actual image publication succeeded at
-[run 38883123756](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883123756).
-Application **Actions plan/apply has not yet been exercised**; the live demo was
-deployed through the operator path. Passing helper tests is not deployment proof.
-The temporary private test runner was retired after its authorized test window;
-reestablish an approved runner before enabling delivery again.
+[run 38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639).
+Application plan/apply also passed through Actions: [run 38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780),
+using source `7bca5c1`, including the clean second plan, revision readiness,
+public routing, HSTS, authentication rejection and CORS. It did not send a live
+inference request or repeat load/alert acceptance. Passing helper tests alone
+is not deployment proof.
+The temporary private test VM is deallocated after its test window; disk/IP
+cleanup and disposable cleanup revalidation remain. Reestablish approved private
+execution before future cloud jobs.
 
 For one-time application state storage and registry provisioning, use the
 [foundation workflow](foundation-deployment.md) before these application steps.

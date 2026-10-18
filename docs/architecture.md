@@ -161,16 +161,19 @@ settlement window and must never refund an outcome that may have been billed.
 Application CI verifies source without Azure credentials. Separate, manually
 triggered release and deployment workflows use dedicated federated identities,
 verified image digests, and protected GitHub environments. The runtime identity
-has pull/data/secret permissions separately from automation. These workflows
-are disabled until configured and have not been cloud-tested; see
-[delivery setup](delivery.md).
+has pull/data/secret permissions separately from automation. Actual publication and saved-plan application passed through Actions for
+source `7bca5c1`, with a clean second plan and safe deployed smoke checks; see
+[delivery setup](delivery.md). Future execution requires configured runners,
+scoped identities, enable flags and protected approvals.
 
 ## Edge content validation
 
 The repository policy now validates only `POST /v1/chat`, after origin/JWT
 checks and the coarse edge throttle. Health, readiness and CORS preflight do
-not require a chat body. This source change has **not been deployed or tested
-in APIM**; the last cloud verification predates it.
+not require a chat body. The schema and policy were deployed through Actions in
+[run 38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780).
+Deployment, clean drift and public smoke checks passed. Authenticated malformed-body
+cases have local fixture coverage; they were not replayed through APIM in that run.
 
 APIM requires `application/json` (case-insensitive, with charset parameters
 accepted), enforces the configured `max_body_bytes`, and checks the small

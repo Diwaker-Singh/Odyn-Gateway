@@ -5,8 +5,11 @@ one selected Terraform root: **bootstrap** for application state storage, or
 **registry** for runtime images. It is disabled unless
 `AZURE_FOUNDATION_ENABLED=true`. Actual bootstrap provisioning passed on 16 October 2026, including applying the
 saved plan and a clean second plan: [run 38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735).
-Registry provisioning has helper coverage but its real run was canceled before
-cloud planning when the spending window expired. It is not cloud-verified.
+Registry provisioning also passed its real saved-plan apply and clean second
+plan on 16 October: [run 38945392647](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945392647).
+The registry already existed, so this verified a no-change reconciliation rather
+than creation of a second registry. Management bootstrap separately created
+isolated storage through ARM: [run 38945385264](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945385264).
 
 Dispatch defaults to `validation_only=true`, which runs helper tests without
 Azure operations. Actual provisioning requires `validation_only=false` as well

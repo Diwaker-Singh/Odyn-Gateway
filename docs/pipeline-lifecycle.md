@@ -8,10 +8,11 @@ required environments, OIDC roles, network access and repository enable flags
 must also exist. Never use a public pull-request job on a private Azure runner.
 A public demo with Developer APIM is not a production deployment.
 
-The current runtime topology is unchanged. See [workflow execution status](workflow-coverage.md#execution-status--16-october-2026)
-for actual tested operations versus local-only coverage. New management and
-cleanup workflows have **not been executed against Azure**. Cleanup validation
-does not delete the running service. Budget alerts and workflow timeouts are
+The current runtime topology is unchanged. See [workflow execution status](workflow-coverage.md#execution-status)
+for actual tested operations versus local-only coverage. Management bootstrap, foundation, publication and application deployment have
+passed actual Azure execution. Disposable cleanup remains pending a successful
+retest; its first attempts stopped during inventory before any deletion. Live
+cleanup has not run. Budget alerts and workflow timeouts are
 not hard Azure spending caps.
 
 Cloud-mutating workflows share one concurrency group. Dispatch them in order,
@@ -132,6 +133,10 @@ Create protected main-only environments `azure-cleanup-plan` and `azure-cleanup`
   without individual contained-resource delete grants; see [Microsoft's deletion
   model](https://learn.microsoft.com/azure/azure-resource-manager/management/delete-resource-group).
   No automatic role-granting or lock removal is performed.
+- Resource-group metadata read at subscription scope
+  (`Microsoft.Resources/subscriptions/resourceGroups/read`) so absence checks
+  still work for missing/deleted groups. This does not grant general resource
+  reads or broaden the four-group delete scope.
 - Blob Data Reader on application state; Blob Data Contributor on management
   storage for snapshot recovery/upload.
 - In `azure-cleanup-plan`, secrets `TF_BACKEND_JSON`, `BOOTSTRAP_BACKEND_JSON`,
@@ -200,8 +205,8 @@ vault is gone. If any resources survived, recover state/import before apply.
 Application cleanup does not guarantee zero further charges. Retained management
 storage, snapshot versions/retention, external runners, unrelated resources and
 billing latency must be reviewed. Stop/delete unused runner VMs, disks and IPs.
-The earlier temporary test runner has been retired; it is not a persistent runner
-service.
+The temporary test VM is deallocated; disk/IP removal is a separate cleanup
+step. It is not a persistent runner service.
 
 Management storage is deliberately outside the cleanup job's deletion scope.
 To remove it too, first export and verify the latest foundation states and all
