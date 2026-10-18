@@ -1,7 +1,12 @@
 name: deploy-azure
+run-name: 'deploy ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
       validation_only:
         description: Run credential-free helper tests without publishing or applying
         type: boolean
@@ -90,6 +95,7 @@ jobs:
           export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
           python scripts/delivery.py prepare --directory "$ODYN_DELIVERY_DIR" --release .artifacts/release/release.json
           terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
+          python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"
           terraform -chdir=infra/envs/dev/azure plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1
           python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"
       - uses: actions/upload-artifact@v4

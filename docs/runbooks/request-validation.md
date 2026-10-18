@@ -1,8 +1,9 @@
 # Runbook: request validation failures
 
-The edge content/schema policy is implemented and locally validated, but awaits
-Azure rollout. The historical demo evidence predates it. Use this guide after
-an approved deployment and retain application validation in every environment.
+The edge content/schema policy was deployed through Actions on 17 October 2026
+(IST). Local schema tests and deployment readiness passed; authenticated malformed
+request replay remains a separate cloud acceptance check. Retain application
+validation in every environment.
 
 | Response | Intended meaning | First check |
 |---|---|---|

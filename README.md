@@ -232,6 +232,7 @@ bootstrapping, deployment, cleanup and recreation instructions:
 
 | Order | Workflow | Purpose |
 |---|---|---|
+| 0 | `execution.yml` | Create bounded independent private execution and restore configured group-scoped permissions. |
 | 1 | `management.yml` | Create durable automation state through ARM; no existing Terraform backend needed. |
 | 2 | `infrastructure.yml` — bootstrap | Create application state storage using the management backend. |
 | 3 | `infrastructure.yml` — registry | Provision the image registry. |
@@ -245,6 +246,13 @@ trust, scoped roles, private runners, enable flags and environment approvals
 must be configured first. Cleanup needs an independent runner outside the
 application network; it is **not automatic** and has not deleted the demo.
 The static UI uses its separate Pages workflow.
+
+`lifecycle.yml` orchestrates these setup stages and retires temporary execution
+on completion. One-time administrator federation, scoped bootstrap authority,
+GitHub App setup, environment configuration and provider-secret entry remain
+required. See the [recreation contract](docs/pipeline-lifecycle.md#recreation-contract).
+Full cold recreation of the complete topology is not yet established by the
+component workflow tests.
 
 Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
 second plan and public smoke checks. [Disposable cleanup passed end to end](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129),

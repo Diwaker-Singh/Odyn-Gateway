@@ -1,0 +1,129 @@
+name: Bootstrap private execution
+run-name: 'execution ${{ inputs.orchestration_id }}'
+on:
+  workflow_dispatch:
+    inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
+      validation_only:
+        description: Validate helpers without Azure changes
+        type: boolean
+        default: true
+      action:
+        description: Start a bounded runner lease or retire it
+        type: choice
+        options: [start, stop, test]
+        default: start
+permissions:
+  contents: read
+concurrency:
+  group: ${{ inputs.validation_only && format('azure-validation-{0}', github.run_id) || 'azure-execution-bootstrap' }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  execution:
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_EXECUTION_ENABLED == 'true' }}
+    environment: azure-execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      EXECUTION_CONFIG_JSON: ${{ secrets.EXECUTION_CONFIG_JSON }}
+      RUNNER_REGISTRATION_TOKEN: ${{ secrets.RUNNER_REGISTRATION_TOKEN }}
+      RUNNER_REMOVAL_TOKEN: ${{ secrets.RUNNER_REMOVAL_TOKEN }}
+      ODYN_EXECUTION_ACTION: ${{ inputs.action }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/create-github-app-token@v2
+        id: runner-app
+        if: ${{ vars.RUNNER_APP_ID != '' }}
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          permission-administration: write
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Create or retire independent execution
+        env:
+          GH_TOKEN: ${{ steps.runner-app.outputs.token }}
+        run: |
+          if [ "$ODYN_EXECUTION_ACTION" = test ]; then
+            python scripts/execution.py start
+          else
+            python scripts/execution.py "$ODYN_EXECUTION_ACTION"
+          fi
+      - name: Retire partial setup after a failed start
+        env:
+          GH_TOKEN: ${{ steps.runner-app.outputs.token }}
+        if: ${{ failure() && inputs.action != 'stop' }}
+        run: python scripts/execution.py stop
+  probe:
+    needs: execution
+    if: ${{ !inputs.validation_only && inputs.action == 'test' }}
+    runs-on: [self-hosted, linux, x64, odyn-azure]
+    timeout-minutes: 5
+    steps:
+      - name: Verify private execution tools and credential isolation
+        run: |
+          set -euo pipefail
+          test -f /opt/odyn-ready
+          test ! -d "$HOME/.azure"
+          az version >/dev/null
+          gh --version >/dev/null
+          git --version >/dev/null
+          unzip -v >/dev/null
+          zstd --version >/dev/null
+          python3 -m venv "$RUNNER_TEMP/probe-venv"
+          rm -rf "$RUNNER_TEMP/probe-venv"
+          echo 'Independent private execution probe passed.'
+  retire-test:
+    needs: [execution, probe]
+    if: ${{ always() && !inputs.validation_only && inputs.action == 'test' && needs.execution.result == 'success' }}
+    environment: azure-execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      EXECUTION_CONFIG_JSON: ${{ secrets.EXECUTION_CONFIG_JSON }}
+      RUNNER_REMOVAL_TOKEN: ${{ secrets.RUNNER_REMOVAL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
+        id: runner-app
+        if: ${{ vars.RUNNER_APP_ID != '' }}
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          permission-administration: write
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: python3 scripts/execution.py stop
+        env:
+          GH_TOKEN: ${{ steps.runner-app.outputs.token }}

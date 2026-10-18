@@ -1,7 +1,12 @@
 name: Operational checks
+run-name: 'operations ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
       action:
         description: Read-only operational check
         type: choice

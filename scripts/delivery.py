@@ -205,6 +205,43 @@ def prepare(directory, receipt):
     (directory / "backend.json").write_text(json.dumps(backend))
 
 
+def adopt_bootstrap_group(directory):
+    """Import only an empty, explicitly bootstrap-owned destination group.
+
+    Precreation permits narrow group-scoped delivery roles after full cleanup.
+    Existing application resources require state recovery, never this shortcut.
+    """
+    context()
+    root = infrastructure_root(directory)
+    address = {
+        "bootstrap": "azurerm_resource_group.state",
+        "registry": "azurerm_resource_group.artifacts",
+        "application": "module.llm_gateway.module.azure[0].azurerm_resource_group.main",
+    }[os.environ.get("ODYN_INFRA_COMPONENT", "application")]
+    base = ["terraform", f"-chdir={root}"]
+    if address in run([*base, "state", "list"]).splitlines():
+        return
+    group = os.environ["AZURE_RESOURCE_GROUP"]
+    if json.loads(run(["az", "group", "exists", "-n", group, "-o", "json"])) is False:
+        return  # Normal Terraform creation without precreation is still supported.
+    metadata = json.loads(run(["az", "group", "show", "-n", group, "-o", "json"]))
+    if metadata.get("tags", {}).get("managed_by") != "odyn-execution-pipeline":
+        raise ValueError("Unmanaged existing group requires explicit state recovery")
+    if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):
+        raise ValueError("Cannot import a nonempty group through bootstrap adoption")
+    run(
+        [
+            *base,
+            "import",
+            "-input=false",
+            "-lock-timeout=60s",
+            f"-var-file={directory / 'application.tfvars.json'}",
+            address,
+            metadata["id"],
+        ]
+    )
+
+
 def seal(directory):
     plan = directory / "application.tfplan"
     rendered = json.loads(
@@ -361,7 +398,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "action",
-        choices=("prepare", "prepare-infrastructure", "seal", "unseal", "publish"),
+        choices=(
+            "prepare",
+            "prepare-infrastructure",
+            "adopt-bootstrap-group",
+            "seal",
+            "unseal",
+            "publish",
+        ),
     )
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--release", type=Path)
@@ -371,6 +415,8 @@ def main():
         prepare_infrastructure(args.directory)
     elif args.action == "prepare":
         prepare(args.directory, args.release)
+    elif args.action == "adopt-bootstrap-group":
+        adopt_bootstrap_group(args.directory)
     elif args.action == "seal":
         seal(args.directory)
     elif args.action == "unseal":

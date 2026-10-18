@@ -1,7 +1,12 @@
 name: release-images
+run-name: 'release ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
       validation_only:
         description: Run credential-free helper tests without publishing or applying
         type: boolean

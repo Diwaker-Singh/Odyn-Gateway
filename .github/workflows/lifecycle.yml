@@ -1,0 +1,36 @@
+name: Recreate Azure environment
+on:
+  workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Validate orchestration without dispatching Azure workflows
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: azure-lifecycle-controller
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  recreate:
+    needs: validate
+    if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_LIFECYCLE_ENABLED == 'true' }}
+    environment: azure-lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Recreate in dependency order and retire execution on completion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/lifecycle.py --execute

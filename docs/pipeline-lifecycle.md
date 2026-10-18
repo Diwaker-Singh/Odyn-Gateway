@@ -23,6 +23,105 @@ cancellation is disabled. Validation-only runs have unique concurrency groups. T
 
 ## 1. Administrative trust and management state
 
+### Recreation contract
+
+The operating model is pipeline-driven recreation after one-time administrative
+trust and environment configuration. `execution.yml` now implements independent
+private execution and scoped destination-group permission restoration;
+`lifecycle.yml` sequences the component workflows at the same main revision.
+A full cold recreation of the complete Azure topology remains a separate
+acceptance test, rather than a claim established by helper tests.
+
+The controller runs execution → management state → application state → registry
+→ scanned image publication → application deployment → safe public health,
+then retires execution in a finally path. It passes the successful publication
+run ID to deployment. Correlation IDs distinguish component runs; source changes,
+ambiguous runs and failed components stop setup. Retirement can still run after
+main changes. Saved-plan and protected environment gates remain in each child
+workflow. Do not dispatch competing mutations or update main during recreation.
+Human/machine authenticated inference and paid-provider/load acceptance remain
+separately bounded tests; the controller does not make paid chat calls.
+
+### Configure independent execution once
+
+Create main-only protected environment `azure-execution`, dedicated federated
+`AZURE_CLIENT_ID`, and `EXECUTION_CONFIG_JSON`:
+
+```json
+{
+  "group": "rg-odyn-gateway-execution-prod",
+  "location": "centralindia",
+  "network": "10.47.0.0/24",
+  "minutes": 55,
+  "groups": [
+    {"name": "rg-odyn-gateway-state-prod", "grants": [
+      {"principal": "FOUNDATION_OBJECT_ID", "role": "Contributor"}
+    ]}
+  ],
+  "storage": [],
+  "dns_zones": []
+}
+```
+
+Replace placeholders and include each destination group and reviewed principal /
+role pair. `storage` contains objects with `id` set to existing state-account ARM
+IDs. Optional `application_vnet` is its ARM ID; `dns_zones` contains the associated
+private DNS zone ARM IDs. Use a nonoverlapping private /24. The subnet has a
+Storage service endpoint. The runner has explicit outbound connectivity and an
+NSG denying all inbound; it has no managed identity or injected Azure credential.
+Jobs authenticate separately through their scoped OIDC environments.
+
+The bootstrap identity needs group metadata read/create rights, execution-group
+compute/network rights, explicitly approved network-link/state-firewall rights,
+and role-assignment authority only for the listed destination groups and roles.
+It must be anchored outside application cleanup so it can restore those scoped
+permissions. Establish that authority once through the administrator, with
+reviewed role conditions / policy appropriate to the subscription. The helper's
+allowlist is defense in depth, not an Azure authorization boundary. Ordinary
+application delivery cannot grant itself access. Never use subscription Owner.
+The temporary test identity has narrower fixture-only permissions and is not a
+persistent production bootstrap identity.
+
+For unattended runner registration, configure `RUNNER_APP_ID` and secret
+`RUNNER_APP_PRIVATE_KEY` for a GitHub App installed only on this repository with
+Administration: write. The workflow mints a short-lived installation token.
+The bounded integration test can instead use expiring secrets
+`RUNNER_REGISTRATION_TOKEN` and `RUNNER_REMOVAL_TOKEN`; never store a general
+GitHub CLI credential. Azure receives registration/removal tokens through
+protected Run Command parameters, never VM custom data. Runner downloads are
+version/checksum pinned; each Actions registration handles one job and work
+files are removed between jobs. Only trusted main workflows may use this runner.
+
+Set `AZURE_EXECUTION_ENABLED=true` after configuration. Run `execution.yml` with
+`action=test` to provision, execute its private tool/credential-isolation probe,
+and retire the disposable runner, or `action=start` / `action=stop` for a bounded
+lease. Stop verifies ownership before deletion and removes temporary network
+links and runner registrations. Precreated, empty bootstrap-owned destination
+groups are imported by the delivery workflow before planning; nonempty groups
+or missing state for existing resources require explicit recovery.
+
+Configure protected environment `azure-lifecycle`, enable
+`AZURE_LIFECYCLE_ENABLED`, and configure all component enable flags/backends /
+variables first. Management config must refer to the execution subnet
+`.../virtualNetworks/execution/subnets/runner`. Foundation tfvars must allow that
+same subnet. Then:
+
+```sh
+gh workflow run lifecycle.yml -f validation_only=true
+# After initial trust/configuration and an approved cost window:
+gh workflow run lifecycle.yml -f validation_only=false
+```
+
+A VM lease is at most 55 minutes; the controller has a bounded setup deadline
+and a separate retirement allowance. VM auto-shutdown limits compute if a job
+is interrupted, but does not remove disks or IPs. Cancellation, unavailable
+approvers or a failed retirement can still require the protected stop workflow.
+Workflow timeouts and Azure alerts are not spending caps. Preserve recovery
+state; initial tenant authorization, human consent and provider-key entry remain
+explicit trust boundaries. A fully deleted environment needs its provider secret
+supplied again before live mode. State recovery and empty-environment creation
+are distinct paths.
+
 An administrator must initially configure GitHub OIDC trust and protected
 GitHub environments. A workflow cannot securely grant its own initial Azure
 permissions. Use exact observed federated subjects; see [delivery](delivery.md).
@@ -52,11 +151,10 @@ secret `MANAGEMENT_CONFIG_JSON`, for example:
 ```
 
 Replace every placeholder. Principal IDs are object IDs, not app/client IDs.
-The private runner subnet must already exist, with a Microsoft.Storage service
-endpoint and suitable network/DNS access. Keep it in an **independent management
-VNet/group**, outside every application cleanup target. Runner provisioning and
-administrative federation setup remain deliberate operator responsibilities;
-these workflows do not provision their own privileged execution machines.
+Run `execution.yml` first so the configured private runner subnet exists, with a
+Microsoft.Storage service endpoint and suitable network/DNS access. It stays in
+an **independent management VNet/group**, outside every application cleanup
+target. Administrative federation is the one-time trust boundary.
 
 Run **Bootstrap automation state** (`management.yml`) with validation off. It
 uses ARM, so it needs no Terraform backend. The source-defined deployment
@@ -182,13 +280,13 @@ requires operator investigation when its ownership can no longer be established.
 
 ## 5. Recreate after cleanup
 
-Deleting a resource group also removes its scoped role assignments. An
-administrator must reestablish the required creation/deployment permissions
-before these pipelines can recreate that group. Their initial trust and
+Deleting a resource group also removes its scoped role assignments. The protected execution bootstrap can precreate the configured destination
+groups and restore their explicitly listed permissions before foundation work.
+An administrator must first authorize that bootstrap identity outside the
+deleted groups. Their initial trust and
 permissions must be anchored outside the deleted environment; a workflow cannot
-grant itself access after its own scope disappears. The current demo identities
-are scoped to existing groups and require this administrative step after full
-cleanup. Do not compensate by granting subscription Owner to normal delivery. If an
+grant itself access after its own scope disappears. The current demo delivery identities are scoped to existing groups; the
+bootstrap grants must explicitly name them before automated recreation. Do not compensate by granting subscription Owner to normal delivery. If an
 administrator pre-creates empty foundation groups to restore scoped access,
 import those groups into the relevant foundation state before planning; an
 empty state cannot silently adopt them.

@@ -1,7 +1,12 @@
 name: Bootstrap automation state
+run-name: 'management ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
       validation_only:
         description: Run helper tests without provisioning storage
         type: boolean
