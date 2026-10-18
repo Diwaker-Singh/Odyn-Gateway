@@ -249,8 +249,8 @@ The static UI uses its separate Pages workflow.
 
 Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
 second plan and public smoke checks. Disposable cleanup still awaits a passing
-cloud retest; live cleanup has not run. The temporary test VM is deallocated; its disk/IP cleanup and a disposable
-cleanup retest remain to be completed. Future cloud execution needs an approved
+cloud retest; live cleanup has not run. The temporary test VM, disk, NIC and public IP have been removed. A disposable
+cleanup retest remains pending; recovery storage and network scaffolding are retained. Future cloud execution needs an approved
 window and private runner. See [execution
 status](docs/workflow-coverage.md#execution-status) for exact run links
 and the distinction between helper tests and actual cloud operations.

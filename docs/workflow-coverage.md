@@ -67,7 +67,7 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 
 | Operation | Actual result |
 |---|---|
-| Exact-source CI | [38948431452](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38948431452), passed for `bedebb9`. |
+| Exact-source CI | [39157040590](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157040590), 12/12 jobs passed for `904cbf5`, including image scans. |
 | Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
 | Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
 | Resource inventory | [38883061100](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883061100), passed with Reader OIDC. |
@@ -78,7 +78,7 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 | Cleanup | Safeguard validation passed; disposable Azure execution failed safely at inventory; metadata-read permissions are now configured and a cloud retest is pending. No live application cleanup has run. |
 
 The successful cloud runs refer to the exact source linked above, not subsequent
-workflow edits. The first temporary runner was removed. The renewed independent-VNet test VM is now deallocated; disk/IP cleanup remains. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
+workflow edits. The first temporary runner was removed. The renewed independent-VNet test VM, disk, NIC and public IP have also been removed; recovery storage and network scaffolding remain. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
 observed immutable owner/repository-ID subjects. The initial test found and fixed
 missing runner tools, an OIDC subject mismatch, and missing registry metadata
 Reader access; these were not application deployment tests.

@@ -205,8 +205,8 @@ vault is gone. If any resources survived, recover state/import before apply.
 Application cleanup does not guarantee zero further charges. Retained management
 storage, snapshot versions/retention, external runners, unrelated resources and
 billing latency must be reviewed. Stop/delete unused runner VMs, disks and IPs.
-The temporary test VM is deallocated; disk/IP removal is a separate cleanup
-step. It is not a persistent runner service.
+The temporary test VM, disk, NIC and public IP have been removed. Network
+scaffolding and recovery storage remain; they are not a persistent runner service.
 
 Management storage is deliberately outside the cleanup job's deletion scope.
 To remove it too, first export and verify the latest foundation states and all

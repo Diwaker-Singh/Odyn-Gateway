@@ -24,9 +24,10 @@ using source `7bca5c1`, including the clean second plan, revision readiness,
 public routing, HSTS, authentication rejection and CORS. It did not send a live
 inference request or repeat load/alert acceptance. Passing helper tests alone
 is not deployment proof.
-The temporary private test VM is deallocated after its test window; disk/IP
-cleanup and disposable cleanup revalidation remain. Reestablish approved private
-execution before future cloud jobs.
+The temporary private test VM, disk, NIC and public IP were removed after the
+test window. Recovery storage and network scaffolding remain; disposable cleanup
+revalidation is pending. Reestablish approved private execution and enable flags
+before future cloud jobs.
 
 For one-time application state storage and registry provisioning, use the
 [foundation workflow](foundation-deployment.md) before these application steps.
