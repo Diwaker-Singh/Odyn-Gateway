@@ -33,4 +33,5 @@ jobs:
       - name: Recreate in dependency order and retire execution on completion
         env:
           GH_TOKEN: ${{ github.token }}
+          LIFECYCLE_FLAGS_JSON: ${{ toJSON(vars) }}
         run: python scripts/lifecycle.py --execute

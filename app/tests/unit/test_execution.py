@@ -349,6 +349,12 @@ class LifecycleTests(unittest.TestCase):
         )
         cls.module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.module)
+        cls.real_preflight = staticmethod(cls.module.preflight)
+
+    def setUp(self):
+        preflight = patch.object(self.module, "preflight")
+        self.preflight = preflight.start()
+        self.addCleanup(preflight.stop)
 
     def test_orders_dependencies_and_pins_deploy_to_publication(self):
         with (
@@ -430,3 +436,39 @@ class LifecycleTests(unittest.TestCase):
         ):
             self.module.recreate(30)
         self.assertEqual(dispatch.call_count, 1)
+
+    def test_disabled_component_blocks_setup_before_allocation(self):
+        with (
+            patch.dict(os.environ, {"LIFECYCLE_FLAGS_JSON": "{}"}),
+            patch.object(self.module, "gh") as gh,
+            self.assertRaises(ValueError),
+        ):
+            self.real_preflight()
+        gh.assert_not_called()
+
+    def test_validation_only_child_success_is_not_cloud_success(self):
+        env = {
+            "GITHUB_REPOSITORY": "owner/repo",
+            "GITHUB_SHA": "source",
+            "GITHUB_RUN_ID": "1",
+        }
+        responses = [
+            {"sha": "source"},
+            None,
+            [
+                {
+                    "databaseId": 9,
+                    "displayTitle": "management lifecycle-1-run",
+                    "headSha": "source",
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ],
+            {"jobs": [{"name": "provision", "conclusion": "skipped"}]},
+        ]
+        with (
+            patch.dict(os.environ, env),
+            patch.object(self.module, "gh", side_effect=responses),
+            self.assertRaises(RuntimeError),
+        ):
+            self.module.dispatch("management.yml", {}, 999999999)

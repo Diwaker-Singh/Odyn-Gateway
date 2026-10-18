@@ -10,6 +10,48 @@ import os
 import subprocess
 import time
 
+REQUIRED_FLAGS = (
+    "AZURE_EXECUTION_ENABLED",
+    "AZURE_MANAGEMENT_ENABLED",
+    "AZURE_FOUNDATION_ENABLED",
+    "AZURE_DELIVERY_ENABLED",
+    "AZURE_OPERATIONS_ENABLED",
+)
+REQUIRED_JOBS = {
+    "execution.yml": "execution",
+    "management.yml": "provision",
+    "infrastructure.yml": "apply",
+    "release.yml": "publish",
+    "deploy.yml": "apply",
+    "operations.yml": "health",
+}
+
+
+def preflight():
+    flags = json.loads(os.environ["LIFECYCLE_FLAGS_JSON"])
+    if any(flags.get(name) != "true" for name in REQUIRED_FLAGS):
+        raise ValueError("Every component enable flag must be explicitly true")
+    runs = gh(
+        "run",
+        "list",
+        "--repo",
+        os.environ["GITHUB_REPOSITORY"],
+        "--workflow",
+        "ci.yml",
+        "--commit",
+        os.environ["GITHUB_SHA"],
+        "--json",
+        "headSha,event,status,conclusion",
+    )
+    if not any(
+        run["headSha"] == os.environ["GITHUB_SHA"]
+        and run["event"] == "push"
+        and run["status"] == "completed"
+        and run["conclusion"] == "success"
+        for run in runs
+    ):
+        raise ValueError("Exact-source push CI must pass before allocating execution")
+
 
 def gh(*args):
     result = subprocess.run(
@@ -98,6 +140,23 @@ def dispatch(workflow, inputs, deadline):
                     raise RuntimeError(
                         f"Component {workflow} failed; run {run['databaseId']}"
                     )
+                jobs = gh(
+                    "run",
+                    "view",
+                    str(run["databaseId"]),
+                    "--repo",
+                    repo,
+                    "--json",
+                    "jobs",
+                )["jobs"]
+                if not any(
+                    job["name"] == REQUIRED_JOBS[workflow]
+                    and job["conclusion"] == "success"
+                    for job in jobs
+                ):
+                    raise RuntimeError(
+                        "Cloud component was skipped or did not pass; helper success is insufficient"
+                    )
                 print(
                     json.dumps(
                         {
@@ -139,6 +198,7 @@ class ActiveChildError(RuntimeError):
 def recreate(minutes):
     if os.environ.get("GITHUB_REF") != "refs/heads/main":
         raise ValueError("Lifecycle requires protected main")
+    preflight()
     deadline = time.monotonic() + minutes * 60
     release = None
     safe_to_retire = True
