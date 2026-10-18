@@ -219,7 +219,33 @@ def adopt_bootstrap_group(directory):
         "application": "module.llm_gateway.module.azure[0].azurerm_resource_group.main",
     }[os.environ.get("ODYN_INFRA_COMPONENT", "application")]
     base = ["terraform", f"-chdir={root}"]
-    if address in run([*base, "state", "list"]).splitlines():
+    backend = json.loads(os.environ["TF_BACKEND_JSON"])
+    # A genuinely new state and a backend failure both make Terraform's state
+    # command exit nonzero. Establish absence through authenticated Blob metadata
+    # instead of treating an arbitrary Terraform error as an empty backend.
+    state_exists = json.loads(
+        run(
+            [
+                "az",
+                "storage",
+                "blob",
+                "exists",
+                "--auth-mode",
+                "login",
+                "--account-name",
+                backend["storage_account_name"],
+                "--container-name",
+                backend["container_name"],
+                "--name",
+                backend["key"],
+                "-o",
+                "json",
+            ]
+        )
+    )["exists"]
+    if not isinstance(state_exists, bool):
+        raise TypeError("Backend existence was not established")
+    if state_exists and address in run([*base, "state", "list"]).splitlines():
         return
     group = os.environ["AZURE_RESOURCE_GROUP"]
     if json.loads(run(["az", "group", "exists", "-n", group, "-o", "json"])) is False:

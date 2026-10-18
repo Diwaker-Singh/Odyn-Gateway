@@ -17,6 +17,8 @@ def gh(*args):
     )
     if result.returncode:
         raise RuntimeError("Lifecycle GitHub operation failed; inspect component runs")
+    if args[0] != "api" and args[:2] not in (("run", "list"), ("run", "view")):
+        return None  # Dispatch/cancel print human-readable output rather than JSON.
     return json.loads(result.stdout or "null")
 
 
@@ -63,6 +65,7 @@ def dispatch(workflow, inputs, deadline):
         args += ["-f", f"{name}={value}"]
     gh(*args)
     title = workflow.removesuffix(".yml") + " " + correlation
+    active_run = None
     while time.monotonic() < deadline:
         runs = gh(
             "run",
@@ -89,6 +92,7 @@ def dispatch(workflow, inputs, deadline):
             )
         if matches:
             run = matches[0]
+            active_run = run["databaseId"]
             if run["status"] == "completed":
                 if run["conclusion"] != "success":
                     raise RuntimeError(
@@ -108,9 +112,28 @@ def dispatch(workflow, inputs, deadline):
                 )
                 return run["databaseId"]
         time.sleep(10)
+    if active_run:
+        gh("run", "cancel", str(active_run), "--repo", repo)
+        # Do not delete a runner while Terraform is still applying. A failure
+        # to stop the child leaves retirement to the operator, preserving state.
+        for _ in range(30):
+            status = gh(
+                "run", "view", str(active_run), "--repo", repo, "--json", "status"
+            )
+            if status["status"] == "completed":
+                break
+            time.sleep(10)
+        else:
+            raise ActiveChildError(
+                "Child did not stop; preserve execution and investigate before retirement"
+            )
     raise RuntimeError(
         "Lifecycle deadline reached; inspect queued/running component before retrying"
     )
+
+
+class ActiveChildError(RuntimeError):
+    """Do not destroy private execution underneath an active apply."""
 
 
 def recreate(minutes):
@@ -118,6 +141,7 @@ def recreate(minutes):
         raise ValueError("Lifecycle requires protected main")
     deadline = time.monotonic() + minutes * 60
     release = None
+    safe_to_retire = True
     try:
         for workflow, inputs in stages():
             if workflow == "deploy.yml":
@@ -125,11 +149,15 @@ def recreate(minutes):
             result = dispatch(workflow, inputs, deadline)
             if workflow == "release.yml":
                 release = result
+    except ActiveChildError:
+        safe_to_retire = False
+        raise
     finally:
         # Stop remains a separate protected workflow and runs from GitHub's
         # hosted runner, even when application networking failed. Give retirement
         # its own time allowance; this does not extend provider or load approval.
-        dispatch("execution.yml", {"action": "stop"}, time.monotonic() + 20 * 60)
+        if safe_to_retire:
+            dispatch("execution.yml", {"action": "stop"}, time.monotonic() + 20 * 60)
 
 
 def main():

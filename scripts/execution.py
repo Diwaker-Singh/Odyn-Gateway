@@ -583,7 +583,7 @@ def stop(value):
                         group,
                         "--vm-name",
                         "runner",
-                        "-n",
+                        "--run-command-name",
                         "retire",
                         "--expand",
                         "instanceView",

@@ -173,6 +173,67 @@ class ExecutionTests(unittest.TestCase):
         ):
             self.assertIn(expected, source)
 
+    def test_token_only_retirement_waits_for_managed_command(self):
+        responses = [
+            True,
+            {"tags": {"managed_by": M.OWNER}},
+            [{"name": "runner"}],
+            {"instanceView": {"executionState": "Succeeded"}},
+            None,
+            False,
+        ]
+        with (
+            patch.dict(
+                os.environ,
+                self.environment()
+                | {"GH_TOKEN": "", "RUNNER_REMOVAL_TOKEN": "short-lived"},
+            ),
+            patch.object(M, "az", side_effect=responses) as az,
+            patch.object(M, "protected_start") as protected,
+            patch.object(M, "network_links"),
+        ):
+            M.stop(self.config())
+        protected.assert_called_once_with(
+            self.config(), "short-lived", 0, stopping=True
+        )
+        status_call = az.call_args_list[3].args
+        self.assertIn("--run-command-name", status_call)
+        self.assertIn("retire", status_call)
+
+    def test_partial_cleanup_skips_absent_external_storage_group(self):
+        value = self.config() | {
+            "storage": [
+                {
+                    "id": (
+                        "/subscriptions/sub/resourceGroups/state/"
+                        "providers/Microsoft.Storage/storageAccounts/state"
+                    )
+                }
+            ]
+        }
+        with (
+            patch.dict(os.environ, self.environment()),
+            patch.object(M, "az", return_value=False) as az,
+        ):
+            M.network_links(value, remove=True)
+        self.assertEqual(az.call_count, 1)
+
+    def test_running_execution_cannot_be_adopted(self):
+        with (
+            patch.object(
+                M,
+                "az",
+                side_effect=[
+                    True,
+                    {"tags": {"managed_by": M.OWNER}},
+                    [{"name": "existing"}],
+                ],
+            ) as az,
+            self.assertRaises(ValueError),
+        ):
+            M.start(self.config())
+        self.assertFalse(any("create" in call.args for call in az.call_args_list))
+
 
 class GroupAdoptionTests(unittest.TestCase):
     @classmethod
@@ -190,7 +251,11 @@ class GroupAdoptionTests(unittest.TestCase):
             ({"managed_by": "terraform"}, [], False),
             ({"managed_by": "odyn-execution-pipeline"}, [{"id": "survivor"}], False),
         ):
-            responses = ["", "true", json.dumps({"id": "/destination", "tags": tags})]
+            responses = [
+                '{"exists": false}',
+                "true",
+                json.dumps({"id": "/destination", "tags": tags}),
+            ]
             if tags["managed_by"] == "odyn-execution-pipeline":
                 responses.append(json.dumps(resources))
             if expected:
@@ -202,6 +267,13 @@ class GroupAdoptionTests(unittest.TestCase):
                     {
                         "AZURE_RESOURCE_GROUP": "rg-odyn-gateway-test19",
                         "ODYN_INFRA_COMPONENT": "bootstrap",
+                        "TF_BACKEND_JSON": json.dumps(
+                            {
+                                "storage_account_name": "state",
+                                "container_name": "state",
+                                "key": "new.tfstate",
+                            }
+                        ),
                     },
                 ),
                 patch.object(module, "context"),
@@ -219,11 +291,45 @@ class GroupAdoptionTests(unittest.TestCase):
 
     def test_existing_state_address_is_never_imported_again(self):
         with (
-            patch.dict(os.environ, {"ODYN_INFRA_COMPONENT": "bootstrap"}),
+            patch.dict(
+                os.environ,
+                {
+                    "ODYN_INFRA_COMPONENT": "bootstrap",
+                    "TF_BACKEND_JSON": json.dumps(
+                        {
+                            "storage_account_name": "state",
+                            "container_name": "state",
+                            "key": "old.tfstate",
+                        }
+                    ),
+                },
+            ),
             patch.object(self.delivery, "context"),
             patch.object(
-                self.delivery, "run", return_value="azurerm_resource_group.state"
+                self.delivery,
+                "run",
+                side_effect=['{"exists": true}', "azurerm_resource_group.state"],
             ) as run,
+        ):
+            self.delivery.adopt_bootstrap_group(Path("/tmp/private"))
+        self.assertEqual(run.call_count, 2)
+
+    def test_backend_unknown_is_not_treated_as_empty(self):
+        env = {
+            "ODYN_INFRA_COMPONENT": "bootstrap",
+            "TF_BACKEND_JSON": json.dumps(
+                {
+                    "storage_account_name": "state",
+                    "container_name": "state",
+                    "key": "old.tfstate",
+                }
+            ),
+        }
+        with (
+            patch.dict(os.environ, env),
+            patch.object(self.delivery, "context"),
+            patch.object(self.delivery, "run", return_value='{"exists": null}') as run,
+            self.assertRaises(TypeError),
         ):
             self.delivery.adopt_bootstrap_group(Path("/tmp/private"))
         self.assertEqual(run.call_count, 1)
@@ -296,3 +402,25 @@ class LifecycleTests(unittest.TestCase):
         ):
             self.module.recreate(30)
         dispatch.assert_not_called()
+
+    def test_dispatch_cli_url_is_not_parsed_as_json(self):
+        result = type(
+            "Result",
+            (),
+            {"returncode": 0, "stdout": "https://github.com/owner/repo/actions/runs/1"},
+        )()
+        with patch.object(self.module.subprocess, "run", return_value=result):
+            self.assertIsNone(self.module.gh("workflow", "run", "execution.yml"))
+
+    def test_active_child_blocks_runner_destruction(self):
+        with (
+            patch.dict(os.environ, {"GITHUB_REF": "refs/heads/main"}),
+            patch.object(
+                self.module,
+                "dispatch",
+                side_effect=self.module.ActiveChildError("apply still active"),
+            ) as dispatch,
+            self.assertRaises(self.module.ActiveChildError),
+        ):
+            self.module.recreate(30)
+        self.assertEqual(dispatch.call_count, 1)
