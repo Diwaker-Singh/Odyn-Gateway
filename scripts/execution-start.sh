@@ -26,4 +26,9 @@ LOOP
 chmod 700 /opt/odyn-runner-loop.sh
 chown odynrunner:odynrunner /opt/odyn-runner-loop.sh
 # Run Command's environment stays out of the public VM custom-data document.
-nohup runuser -u odynrunner --preserve-environment -- /opt/odyn-runner-loop.sh >/var/log/odyn-runner.log 2>&1 </dev/null &
+nohup runuser -u odynrunner -- env -i \
+  HOME=/home/odynrunner USER=odynrunner LOGNAME=odynrunner \
+  PATH=/usr/local/bin:/usr/bin:/bin \
+  ODYN_REPOSITORY="$ODYN_REPOSITORY" ODYN_DEADLINE="$ODYN_DEADLINE" \
+  ODYN_RUNNER_NAME="$ODYN_RUNNER_NAME" \
+  /opt/odyn-runner-loop.sh >/var/log/odyn-runner.log 2>&1 </dev/null &

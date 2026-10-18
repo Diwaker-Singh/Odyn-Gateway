@@ -133,6 +133,12 @@ class ExecutionTests(unittest.TestCase):
         self.assertIn("sha256sum -c", source)
         self.assertNotIn("--token", source)
 
+    def test_runner_has_explicit_clean_user_environment(self):
+        source = (ROOT / "scripts/execution-start.sh").read_text()
+        self.assertIn("env -i", source)
+        self.assertIn("HOME=/home/odynrunner", source)
+        self.assertNotIn("--preserve-environment", source)
+
     def test_restore_groups_is_scoped_and_deterministic(self):
         value = self.config() | {
             "groups": [
