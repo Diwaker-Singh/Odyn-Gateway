@@ -10,9 +10,10 @@ A public demo with Developer APIM is not a production deployment.
 
 The current runtime topology is unchanged. See [workflow execution status](workflow-coverage.md#execution-status)
 for actual tested operations versus local-only coverage. Management bootstrap, foundation, publication and application deployment have
-passed actual Azure execution. Disposable cleanup remains pending a successful
-retest; its first attempts stopped during inventory before any deletion. Live
-cleanup has not run. Budget alerts and workflow timeouts are
+passed actual Azure execution. [Disposable cleanup also passed](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129)
+after the metadata-read permission fix. Its fixture had empty application/registry
+groups and a real state-storage account; it does not establish full live teardown.
+Live cleanup has not run. Budget alerts and workflow timeouts are
 not hard Azure spending caps.
 
 Cloud-mutating workflows share one concurrency group. Dispatch them in order,
@@ -187,7 +188,10 @@ before these pipelines can recreate that group. Their initial trust and
 permissions must be anchored outside the deleted environment; a workflow cannot
 grant itself access after its own scope disappears. The current demo identities
 are scoped to existing groups and require this administrative step after full
-cleanup. Do not compensate by granting subscription Owner to normal delivery.
+cleanup. Do not compensate by granting subscription Owner to normal delivery. If an
+administrator pre-creates empty foundation groups to restore scoped access,
+import those groups into the relevant foundation state before planning; an
+empty state cannot silently adopt them.
 
 
 Retained foundation state will initially describe deleted resources. Preserve
@@ -205,8 +209,9 @@ vault is gone. If any resources survived, recover state/import before apply.
 Application cleanup does not guarantee zero further charges. Retained management
 storage, snapshot versions/retention, external runners, unrelated resources and
 billing latency must be reviewed. Stop/delete unused runner VMs, disks and IPs.
-The temporary test VM, disk, NIC and public IP have been removed. Network
-scaffolding and recovery storage remain; they are not a persistent runner service.
+The temporary runner/network group and isolated test-management storage were
+removed after testing. The primary management backend and live demo remain;
+there is no persistent runner service.
 
 Management storage is deliberately outside the cleanup job's deletion scope.
 To remove it too, first export and verify the latest foundation states and all
@@ -216,3 +221,14 @@ remove only that group. Do not destroy the sole state copy to save a small
 storage charge. A future run of `management.yml` can recreate it, followed by
 verified state restoration before managing surviving resources. Do not confuse
 recreating an empty container with recovering an environment.
+
+The management workflow integration test used disposable storage, not an
+adoption of the primary management backend. Before its next real use, set
+`MANAGEMENT_CONFIG_JSON` for the intended group/account, existing approved
+runner subnet and state principals, and reestablish administrative permissions.
+Do not reuse discarded fixture configuration or assume test-only role assignments
+survive group deletion. All cloud-mutating enable flags are reset to false after
+the test window; setting them does not create a runner or grant permissions.
+
+The discarded management-test configuration is cleared from GitHub; configure
+`MANAGEMENT_CONFIG_JSON` explicitly before the next management bootstrap.

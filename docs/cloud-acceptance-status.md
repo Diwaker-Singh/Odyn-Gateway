@@ -1,91 +1,89 @@
 # Cloud acceptance status
 
-**Refreshed 11 October 2026 at 12:16 UTC.** The assessment is operational in
-Azure, but cloud acceptance remains **partial**. The checks below were read
-from the live deployment unless marked historical. They do not establish
-unbounded production reliability or final billed cost.
+**Refreshed 19 October 2026 (IST).** The Azure assessment deployment is
+operational. Cloud acceptance remains **partial**: delivery automation has
+passed, while several security, load and operational claims below retain
+explicit limits. Local success is not cloud proof.
 
-## Current deployment
+## Current deployment and delivery
 
-- Repository commit: `fcb13361fc36736a5f3cd58267c70b77a9c4fd49`.
-- GitHub CI and the Hosted chat UI workflow both passed for that exact commit:
-  [CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709389),
-  [Pages](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38135709384).
-- Azure Container App revision `ca-odyn-gateway-demo10--reasoningoff8cb4bd6`
-  is healthy, receives 100% traffic and has two replicas. It is in live
-  OpenRouter mode. The gateway image is pinned to
-  `sha256:31b36049269ceb8aca650539f64e4da259688e4abf5c4d88214bcd3efecdfb13`;
-  the collector is pinned to
-  `sha256:81ea0fcd5fdc3666ea4f39bc8b885fee6b4da7ac04e687c11b97c6289aeb971a`.
-- Since this revision became healthy at 11:04 UTC, Application Insights
-  recorded 9 chat requests and 9 provider dependencies, with zero failed
-  requests or dependencies. This is a short observation window, not a load or
-  reliability guarantee.
-- Front Door `/v1/healthz` returned HTTP 200 with HSTS. A harmless encoded XSS
-  probe returned 403. The GitHub Pages CORS preflight returned HTTP 200 and
-  allowed only the configured Pages origin, `POST`, and the required headers.
-- The deployed Application Insights workbook was updated from the current
-  Terraform source. A targeted follow-up plan was a no-op for that workbook.
-  Six of seven workbook queries returned rows in the last six hours. The
-  security/accounting panel had no rows in its last-hour window; five event
-  categories appeared in a 24-hour query, consistent with an idle period.
-  The workbook was not opened in the Azure portal for a visual-rendering check.
+- [Application Actions run 38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780)
+  passed for source `7bca5c1`: the reviewed saved plan was applied, a full second
+  plan returned no changes, the new revision became ready, and public
+  health/HSTS, authentication rejection and exact-origin CORS checks passed.
+- The deployed revision is `ca-odyn-gateway-demo10--0000008`. Read-only checks
+  on 19 October confirmed that it is the latest ready revision, APIM reports
+  `Succeeded`, and the `chat-request-schema` deployment reports `Succeeded`.
+  Runtime images are pinned to the verified remote manifest references from
+  [publication run 38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639).
+- The rollout preserved model/limits configuration, Key Vault configuration,
+  and alert thresholds/receivers. Runtime settings were compared privately
+  against the saved plan; image references matched the publication receipt.
+- Image publication, state-storage provisioning, registry reconciliation,
+  management-storage creation, operational inventory and Pages have passing
+  Actions runs. See [workflow execution status](workflow-coverage.md#execution-status)
+  for their exact source and scope. CI and cloud jobs are separate claims.
+- Delivery now uses dedicated federated service principals; the runtime uses
+  its separate managed identity. This demonstrates identity separation in the
+  Actions path. Production role minimization and independent-review governance
+  still need environment-specific review.
+
+## Historical application observations
+
+These observations predate the latest pipeline rollout and were not repeated
+by its safe smoke checks:
+
+- On 11 October, an authenticated hosted-UI chat and its provider dependency
+  returned HTTP 200 after the reasoning/token-budget fix. Human PKCE and
+  machine client-credentials authentication were demonstrated.
 - One controlled authentication alert and its action-group notification path
-  were previously demonstrated. This is the agreed single-alert proof; it does
-  not claim every alert rule was independently forced and recovered.
-- The latest available cost query is still the 04:35 UTC snapshot: INR 8.498
-  month-to-date across the dedicated resource groups. A fresh query was
-  throttled by Cost Management (HTTP 429), so actual cost remains unknown and
-  this figure is not a bill or a spend cap.
+  were demonstrated. This is the agreed single-alert proof, not proof that
+  all seven alert rules were independently forced and recovered.
+- The deployed workbook's queries returned application data; a targeted
+  workbook follow-up plan was clean. Portal visual rendering and complete
+  edge-to-provider diagnostic correlation were not demonstrated.
+- A bounded two-replica run on an earlier **stub-mode** revision recorded
+  225 requests, 112 HTTP 429s, no HTTP 503s, and no matching conflict/table-error
+  log lines. It does not prove live inference throughput or complete global
+  budget enforcement under contention.
 
-## Remaining cloud limits
+## Remaining acceptance limits
 
-- **Direct-origin denial:** The APIM subnet NSG is associated with APIM, permits
-  inbound 443 from `AzureFrontDoor.Backend`, and denies other inbound 80/443
-  traffic. Front Door health succeeded; direct APIM access timed out after
-  five seconds. Azure has no existing NSG/VNet flow logs, so packet-level
-  denial evidence is unavailable and this requirement remains unproven. The
-  Container Apps environment is internal; its direct hostname did not resolve
-  from the external test client.
-- **Terraform idempotence:** A fresh full plan had 9 in-place updates and no
-  creates, deletes, replacements, or failed checks. The differences are APIM
-  publisher metadata, seven alert descriptions, and Key Vault purge protection
-  changing from disabled to enabled. The workbook-only update was applied and
-  is now a no-op. The remaining plan was not applied because enabling purge
-  protection is effectively irreversible and the other changes are unrelated
-  to the tested runtime.
-- **Limits and accounting:** The latest bounded two-replica saturation result
-  remains historical, from revision 4 in stub mode: 225 requests, 112 HTTP
-  429s, no HTTP 503s, and no matching conflict/table-error log lines. It does
-  not prove global budgets, accounting correctness under contention, or live
-  inference throughput. No load was sent to the live provider during this
-  refresh.
-- **Telemetry:** The dashboard queries and app/provider correlation have data,
-  but APIM/Front Door diagnostic correlation has not been demonstrated.
-- **Egress and identity separation:** Current evidence does not prove provider
-  egress restriction or that deployment permissions are separated from
-  runtime permissions.
-- **Cost and lifecycle:** Cost Management throttled the refresh; charges may
-  continue while the deployment remains active. Teardown has not been run.
+- **Direct-origin denial:** Earlier Front Door health succeeded and direct
+  APIM access timed out. NSG configuration supports the intended boundary, but
+  no packet/flow evidence established the denial. The Container Apps backend
+  is internal. Keep direct-origin denial unproven rather than treating a
+  timeout as definitive proof.
+- **Content validation:** APIM schema and policy deployment passed through
+  Actions. Seventeen shared schema fixtures validate structure locally;
+  authenticated malformed-body cases have not been replayed through APIM.
+  See the [validation runbook](runbooks/request-validation.md).
+- **Limits/accounting:** The earlier stub run is qualified evidence only.
+  Global budget contention, live-provider capacity and sustained reliability
+  have not been fully established. No new inference/load traffic was generated
+  by the delivery verification.
+- **Telemetry and egress:** Useful app/provider telemetry exists historically;
+  complete APIM/Front Door trace correlation and network-enforced provider-domain
+  egress restrictions remain unproven.
+- **Lifecycle:** Live deployment teardown has not run. [Disposable cleanup passed](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129)
+  after a group-metadata permission fix, using empty application/registry groups
+  and a real state-storage account. This does not demonstrate complete live
+  APIM/Key Vault/Container Apps teardown. Recovered state and protected approvals
+  remain mandatory before destructive execution.
+- **Cost:** There is no fresh attributable billing result for this refresh.
+  The 11 October INR 8.498 snapshot is historical, not today's cost or a cap.
+  The retained demo and management storage continue to incur charges. Review
+  Azure Cost Management and the [cleanup scope](pipeline-lifecycle.md#6-remaining-costs-and-the-management-boundary).
 
 ## Reading these results
 
 The hosted UI is at `https://diwaker-singh.github.io/Odyn-Gateway/`. Its public
-configuration contains only public Entra client settings and the gateway
-endpoint. The OpenRouter credential remains in Key Vault and is referenced by
-the runtime; no secret value belongs in this repository.
+configuration contains public client settings and the gateway endpoint. The
+provider credential remains in Key Vault; no secret value belongs in source,
+state outputs, logs, recordings or CI output.
 
-Local tests, CI, Terraform validation, and prior stub-mode load results are
-separate from live cloud proof. Do not describe the remaining items above as
-passed. Raw plans, state, logs, prompts, responses, credentials, and private
-test transcripts remain outside the public repository.
-
-## Subsequent local policy change
-
-The repository now contains APIM chat content/schema validation. This change
-has passed local policy/schema and Terraform checks, but has not been applied
-to Azure. The historical cloud observations above do not validate this new
-policy. See [edge content validation](architecture.md#edge-content-validation)
-and the [validation runbook](runbooks/request-validation.md) for required
-post-deployment checks. The 17 shared schema fixtures and 259 passing gateway/
-tooling tests are local results, not additional cloud acceptance evidence.
+Local revalidation on 19 October passed 279 tests plus formatting, types,
+configuration, repository policy, compilation and secret checks. Those checks,
+image scans and historical application observations do not close the remaining
+cloud limits above. Raw state, plans, logs, credentials and private transcripts
+remain outside the public source tree.

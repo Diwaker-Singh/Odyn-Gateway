@@ -8,7 +8,10 @@ confirmation input, inventory/source/run/identity checks and a protected deletio
 gate. See [pipeline cleanup setup](pipeline-lifecycle.md#4-protected-cleanup--only-when-the-demo-can-stop).
 It deletes the same four groups as the operator script below. Management storage
 and external runners remain outside its scope and may continue costing money.
-The new workflow has automated safeguard tests; real deletion is not yet cloud-tested.
+The workflow passed [an isolated Azure cleanup test](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129)
+with encrypted recovery, empty application/registry groups and a real state-storage
+account. This is not proof that full APIM/Key Vault/Container Apps teardown has
+been exercised. Live deployment deletion has not run.
 
 ## Interactive operator option
 

@@ -156,10 +156,9 @@ Local revalidation on 19 October 2026 passed 279 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;
-all 4 roots passed the earlier release validation. GitHub Actions CI passed for source commit
-`bedebb9`: [workflow run
-38948431452](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38948431452).
-Later workflow additions have separate validation and are not covered by that earlier run.
+all 4 roots passed the earlier release validation. GitHub Actions CI passed 12/12 jobs for the tested source `3b7dcdd`: [workflow run
+39157467177](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157467177).
+See [latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain) for subsequent documentation commits.
 The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
 evidence artifacts are kept outside the public source tree; the status document
 labels what was observed and what is still unproven.
@@ -248,9 +247,12 @@ application network; it is **not automatic** and has not deleted the demo.
 The static UI uses its separate Pages workflow.
 
 Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
-second plan and public smoke checks. Disposable cleanup still awaits a passing
-cloud retest; live cleanup has not run. The temporary test VM, disk, NIC and public IP have been removed. A disposable
-cleanup retest remains pending; recovery storage and network scaffolding are retained. Future cloud execution needs an approved
+second plan and public smoke checks. [Disposable cleanup passed end to end](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129),
+including encrypted recovery and absence verification. It used empty application/
+registry groups and a real state-storage account; live deployment cleanup has
+not run. Temporary runner and disposable test infrastructure are removed after testing.
+The live demo and primary management recovery storage are retained and continue
+to incur charges until explicitly removed. Future cloud execution needs an approved
 window and private runner. See [execution
 status](docs/workflow-coverage.md#execution-status) for exact run links
 and the distinction between helper tests and actual cloud operations.

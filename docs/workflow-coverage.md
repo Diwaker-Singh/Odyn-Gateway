@@ -67,7 +67,7 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 
 | Operation | Actual result |
 |---|---|
-| Exact-source CI | [39157040590](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157040590), 12/12 jobs passed for `904cbf5`, including image scans. |
+| Exact-source CI | [39157467177](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39157467177), 12/12 jobs passed for `3b7dcdd`, including image scans. |
 | Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
 | Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
 | Resource inventory | [38883061100](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883061100), passed with Reader OIDC. |
@@ -75,10 +75,10 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 | Registry provisioning | [38945392647](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945392647), saved no-change plan applied and second plan clean. |
 | Application Actions deployment | [38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780), passed for `7bca5c1`; reviewed saved plan, clean second plan, revision readiness and public health/auth/CORS. |
 | Management bootstrap | [38945385264](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945385264), actual isolated storage creation passed. |
-| Cleanup | Safeguard validation passed; disposable Azure execution failed safely at inventory; metadata-read permissions are now configured and a cloud retest is pending. No live application cleanup has run. |
+| Cleanup | [39158982129](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129), passed for `3b7dcdd`: encrypted durable recovery, protected deletion and final absence checks on the isolated fixture. No live cleanup ran. |
 
 The successful cloud runs refer to the exact source linked above, not subsequent
-workflow edits. The first temporary runner was removed. The renewed independent-VNet test VM, disk, NIC and public IP have also been removed; recovery storage and network scaffolding remain. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
+workflow edits. The temporary runner/network group and isolated test-management group were removed after verification. The primary management backend and live demo remain. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
 observed immutable owner/repository-ID subjects. The initial test found and fixed
 missing runner tools, an OIDC subject mismatch, and missing registry metadata
 Reader access; these were not application deployment tests.
@@ -86,3 +86,19 @@ Reader access; these were not application deployment tests.
 Interactive human SSO, secret entry and administrative identity grants remain
 intentional operator boundaries. Credential-free success does not establish
 cloud provisioning, deletion or production qualification.
+
+### Cleanup test scope and failure learning
+
+The fixture used three genuine Terraform states, empty dedicated application and
+registry groups, and a real state-storage account. Its managed-app group was
+already absent. This exercises missing-group handling and deletion/recovery,
+not the duration or failure modes of tearing down APIM, Key Vault or a running
+Container Apps environment. Full live teardown remains separately authorized.
+
+The first attempts failed closed during inventory: group-scoped permissions
+could not establish absence of a missing group. A separately approved custom
+role adds only subscription-level resource-group metadata read. Delete rights
+remain restricted to the target groups. With that permission the same cleanup
+path passed, including absence checks after scoped role assignments disappeared.
+Encrypted recovery was also verified privately before deletion; no plain state
+or key was published.
