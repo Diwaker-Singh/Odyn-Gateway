@@ -283,6 +283,19 @@ class ExecutionTests(unittest.TestCase):
             M.retire_resources(self.config())
         self.assertEqual(az.call_count, 1)
 
+    def test_azure_generated_disk_name_is_retired(self):
+        resources = [
+            {
+                "name": "runner_disk1_47de39a66dcc43a68bc47bfee3731547",
+                "type": "Microsoft.Compute/disks",
+            }
+        ]
+        with patch.object(M, "az", side_effect=[resources, {}, []]) as az:
+            M.retire_resources(self.config())
+        self.assertEqual(
+            az.call_args_list[1].args[:3], ("deployment", "group", "create")
+        )
+
     def test_retained_resource_check_must_be_empty_after_retirement(self):
         resources = [{"name": "runner", "type": "Microsoft.Compute/virtualMachines"}]
         with (

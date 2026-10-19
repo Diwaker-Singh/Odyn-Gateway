@@ -26,9 +26,13 @@ jobs:
     uses: ./.github/workflows/validate-delivery.yml
   health:
     needs: validate
-    if: ${{ !inputs.validation_only && inputs.action == 'health' && github.ref == 'refs/heads/main' }}
+    if: ${{ !inputs.validation_only && inputs.action == 'health' && github.ref == 'refs/heads/main' && vars.AZURE_OPERATIONS_ENABLED == 'true' }}
+    environment: azure-operations
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,10 +41,16 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install --require-hashes -r app/requirements.lock
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Check public health, HSTS, authentication rejection and CORS
         env:
-          CHAT_URL: ${{ vars.ODYN_GATEWAY_CHAT_URL }}
-        run: python scripts/cloud-smoke.py --chat-url "$CHAT_URL" --origin "https://diwaker-singh.github.io"
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: python scripts/cloud-smoke.py --resource-group "$AZURE_RESOURCE_GROUP" --origin "https://diwaker-singh.github.io"
   inventory:
     needs: validate
     if: ${{ !inputs.validation_only && inputs.action == 'teardown-preview' && github.ref == 'refs/heads/main' && vars.AZURE_OPERATIONS_ENABLED == 'true' }}

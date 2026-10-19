@@ -1,8 +1,12 @@
 """Public smoke checks reject redirects and never send credentials or real chat."""
 
 import importlib.util
+import json
+import os
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 
@@ -14,6 +18,75 @@ SPEC.loader.exec_module(MODULE)
 
 
 class CloudSmokeTests(unittest.TestCase):
+    def endpoint(self):
+        return {
+            "id": (
+                "/subscriptions/test-sub/resourceGroups/rg-odyn-gateway-auto19"
+                "/providers/Microsoft.Cdn/profiles/fd-odyn-gateway-auto19"
+                "/afdEndpoints/fd-odyn-gateway-auto19"
+            ),
+            "hostName": "fd-odyn-auto19.example.z03.azurefd.net",
+            "enabledState": "Enabled",
+        }
+
+    def test_resolves_selected_deployment_not_configured_demo_url(self):
+        endpoint = self.endpoint()
+        with (
+            patch.dict(os.environ, {"AZURE_SUBSCRIPTION_ID": "test-sub"}),
+            patch.object(
+                MODULE.subprocess,
+                "run",
+                return_value=SimpleNamespace(stdout=json.dumps([endpoint])),
+            ) as run,
+        ):
+            self.assertEqual(
+                MODULE.deployment_chat_url("rg-odyn-gateway-auto19"),
+                "https://" + endpoint["hostName"] + "/v1/chat",
+            )
+        self.assertIn("rg-odyn-gateway-auto19", run.call_args.args[0])
+        self.assertEqual(run.call_args.kwargs["timeout"], 30)
+
+    def test_rejects_foreign_disabled_or_untrusted_endpoint(self):
+        for field, value in (
+            ("id", "foreign-group"),
+            ("hostName", "attacker.invalid"),
+            ("enabledState", "Disabled"),
+        ):
+            endpoint = self.endpoint() | {field: value}
+            with (
+                self.subTest(field=field),
+                patch.dict(os.environ, {"AZURE_SUBSCRIPTION_ID": "test-sub"}),
+                patch.object(
+                    MODULE.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(stdout=json.dumps([endpoint])),
+                ),
+                self.assertRaises(ValueError),
+            ):
+                MODULE.deployment_chat_url("rg-odyn-gateway-auto19")
+
+    def test_rejects_ambiguous_endpoint_inventory(self):
+        for endpoints in ([], [self.endpoint(), self.endpoint()]):
+            with (
+                self.subTest(count=len(endpoints)),
+                patch.dict(os.environ, {"AZURE_SUBSCRIPTION_ID": "test-sub"}),
+                patch.object(
+                    MODULE.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(stdout=json.dumps(endpoints)),
+                ),
+                self.assertRaises(ValueError),
+            ):
+                MODULE.deployment_chat_url("rg-odyn-gateway-auto19")
+
+    def test_rejects_arbitrary_group_before_azure_call(self):
+        with (
+            patch.object(MODULE.subprocess, "run") as run,
+            self.assertRaises(ValueError),
+        ):
+            MODULE.deployment_chat_url("rg-unrelated")
+        run.assert_not_called()
+
     def test_checks_are_bounded_and_do_not_dispatch_valid_chat(self):
         calls = []
 

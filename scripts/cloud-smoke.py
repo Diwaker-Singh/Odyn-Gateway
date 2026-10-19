@@ -2,9 +2,55 @@
 
 import argparse
 import json
+import os
+import re
+import subprocess
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+
+
+def deployment_chat_url(group):
+    """Resolve only the endpoint owned by the selected Azure deployment."""
+    if not re.fullmatch(r"rg-odyn-gateway-[a-z0-9]{2,8}", group):
+        raise ValueError("Expected a dedicated application group")
+    subscription = os.environ["AZURE_SUBSCRIPTION_ID"]
+    profile = "fd-" + group.removeprefix("rg-")
+    result = subprocess.run(
+        [
+            "az",
+            "afd",
+            "endpoint",
+            "list",
+            "--subscription",
+            subscription,
+            "--resource-group",
+            group,
+            "--profile-name",
+            profile,
+            "--only-show-errors",
+            "-o",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    endpoints = json.loads(result.stdout)
+    if len(endpoints) != 1:
+        raise ValueError("Expected exactly one deployment endpoint")
+    endpoint = endpoints[0]
+    expected = f"/subscriptions/{subscription}/resourceGroups/{group}/providers/Microsoft.Cdn/profiles/{profile}/afdEndpoints/{profile}"
+    host = endpoint.get("hostName", "")
+    if (
+        endpoint.get("id", "").lower() != expected.lower()
+        or not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)*\.azurefd\.net", host)
+        or endpoint.get("enabledState") != "Enabled"
+    ):
+        raise ValueError("Endpoint does not match the selected deployment")
+    return f"https://{host}/v1/chat"
 
 
 def check_edge(chat_url, origin, transport=None):
@@ -47,14 +93,32 @@ def check_edge(chat_url, origin, transport=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--chat-url", required=True)
-    parser.add_argument("--origin", required=True)
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--chat-url")
+    target.add_argument("--resource-group")
+    parser.add_argument("--origin")
+    parser.add_argument("--export-endpoint", type=Path)
     args = parser.parse_args()
     try:
-        results = check_edge(args.chat_url, args.origin)
+        url = (
+            deployment_chat_url(args.resource_group)
+            if args.resource_group
+            else args.chat_url
+        )
+        if args.export_endpoint:
+            if not args.resource_group:
+                raise ValueError("Endpoint export requires Azure deployment resolution")
+            with args.export_endpoint.open("a") as stream:
+                stream.write(
+                    f"CLOUD_CHAT_URL={url}\nHEALTH_URL={url.removesuffix('/v1/chat')}/v1/healthz\n"
+                )
+            return 0
+        if not args.origin:
+            raise ValueError("Client origin required")
+        results = check_edge(url, args.origin)
         print(json.dumps({"scope": "public_edge_no_provider", "checks": results}))
         return 0 if all(results.values()) else 1
-    except (ValueError, httpx.HTTPError):
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError, httpx.HTTPError):
         print("Edge smoke failed; response details suppressed.")
         return 1
 

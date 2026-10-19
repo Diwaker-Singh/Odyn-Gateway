@@ -585,7 +585,10 @@ def retire_resources(value):
     }
     for resource in az("resource", "list", "-g", group):
         kind, name = resource["type"].lower(), resource["name"].lower()
-        if kind == "microsoft.compute/disks" and name.startswith("runner_osdisk_"):
+        if kind == "microsoft.compute/disks" and (
+            name.startswith("runner_osdisk_")
+            or re.fullmatch(r"runner_disk1_[a-f0-9]{32}", name)
+        ):
             continue
         if name not in allowed.get(kind, set()):
             raise ValueError(

@@ -90,7 +90,7 @@ configuration contains public client settings and the gateway endpoint. The
 provider credential remains in Key Vault; no secret value belongs in source,
 state outputs, logs, recordings or CI output.
 
-Local revalidation on 19 October passed 305 tests plus formatting, types,
+Local revalidation on 19 October passed 313 tests plus formatting, types,
 configuration, repository policy, compilation and secret checks. Those checks,
 image scans and historical application observations do not close the remaining
 cloud limits above. Raw state, plans, logs, credentials and private transcripts

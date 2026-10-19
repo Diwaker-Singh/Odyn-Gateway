@@ -43,6 +43,12 @@ workflow. Do not dispatch competing mutations or update main during recreation.
 Human/machine authenticated inference and paid-provider/load acceptance remain
 separately bounded tests; the controller does not make paid chat calls.
 
+Deployment and operational health checks resolve Front Door from the selected
+Azure resource group using scoped OIDC access. They verify its subscription,
+resource ID and enabled endpoint before making requests. A configured URL for an
+older demo cannot establish health for a newly created environment. Standalone
+manual checks can still use `cloud-smoke.py --chat-url` with a trusted endpoint.
+
 ### Configure independent execution once
 
 Create main-only protected environment `azure-execution`, dedicated federated
