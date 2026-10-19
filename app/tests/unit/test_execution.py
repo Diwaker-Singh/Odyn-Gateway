@@ -460,7 +460,13 @@ class LifecycleTests(unittest.TestCase):
         with (
             patch.dict(
                 os.environ,
-                {"GITHUB_REF": "refs/heads/main", "LIFECYCLE_TARGET": "disposable"},
+                {
+                    "GITHUB_REF": "refs/heads/main",
+                    "LIFECYCLE_TARGET": "disposable",
+                    "DISPOSABLE_CLEANUP_CONFIRMATION": "delete "
+                    + "a" * 36
+                    + " rg-odyn-gateway-auto19",
+                },
             ),
             patch.object(self.module, "dispatch", return_value=42) as dispatch,
         ):
@@ -468,12 +474,29 @@ class LifecycleTests(unittest.TestCase):
         for call in dispatch.call_args_list:
             if call.args[0] != "execution.yml":
                 self.assertEqual(call.args[1]["target"], "disposable")
+        self.assertEqual(dispatch.call_args_list[-2].args[0], "cleanup.yml")
 
     def test_unknown_profile_cannot_allocate_execution(self):
         with (
             patch.dict(
                 os.environ,
                 {"GITHUB_REF": "refs/heads/main", "LIFECYCLE_TARGET": "unexpected"},
+            ),
+            patch.object(self.module, "dispatch") as dispatch,
+            self.assertRaises(ValueError),
+        ):
+            self.module.recreate(30)
+        dispatch.assert_not_called()
+
+    def test_disposable_profile_requires_cleanup_confirmation_before_allocation(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "GITHUB_REF": "refs/heads/main",
+                    "LIFECYCLE_TARGET": "disposable",
+                    "DISPOSABLE_CLEANUP_CONFIRMATION": "",
+                },
             ),
             patch.object(self.module, "dispatch") as dispatch,
             self.assertRaises(ValueError),

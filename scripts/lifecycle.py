@@ -7,6 +7,7 @@ approvals remain in the component workflows. It never supplies provider secrets.
 import argparse
 import json
 import os
+import re
 import subprocess
 import time
 
@@ -24,6 +25,7 @@ REQUIRED_JOBS = {
     "release.yml": "publish",
     "deploy.yml": "apply",
     "operations.yml": "health",
+    "cleanup.yml": "delete",
 }
 
 
@@ -206,6 +208,12 @@ def recreate(minutes):
     target = os.environ.get("LIFECYCLE_TARGET", "deployment")
     if target not in ("deployment", "disposable"):
         raise ValueError("Unknown protected configuration profile")
+    cleanup_confirmation = os.environ.get("DISPOSABLE_CLEANUP_CONFIRMATION", "")
+    if target == "disposable" and not re.fullmatch(
+        r"delete [a-f0-9-]{36} rg-odyn-gateway-[a-z0-9]{2,8}",
+        cleanup_confirmation,
+    ):
+        raise ValueError("Disposable lifecycle requires explicit cleanup destination")
     deadline = time.monotonic() + minutes * 60
     release = None
     safe_to_retire = True
@@ -221,6 +229,12 @@ def recreate(minutes):
                 execution_started = True
             if workflow == "release.yml":
                 release = result
+        if target == "disposable":
+            dispatch(
+                "cleanup.yml",
+                {"target": "disposable", "confirmation": cleanup_confirmation},
+                deadline,
+            )
     except ActiveChildError:
         safe_to_retire = False
         raise

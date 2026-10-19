@@ -44,5 +44,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LIFECYCLE_FLAGS_JSON: ${{ toJSON(vars) }}
           LIFECYCLE_TARGET: ${{ inputs.target }}
+          DISPOSABLE_CLEANUP_CONFIRMATION: ${{ vars.DISPOSABLE_CLEANUP_CONFIRMATION }}
           SETUP_MINUTES: ${{ inputs.setup_minutes }}
         run: python scripts/lifecycle.py --execute --minutes "$SETUP_MINUTES"

@@ -60,6 +60,12 @@ and deployment destination variables are resolved at job scope after selecting
 the protected environment. This keeps cold-deployment tests from replacing live
 pipeline settings. The controller forwards the selected profile to every
 delivery component; runner execution remains in its dedicated environment.
+After successful disposable health checks, the controller also runs protected
+disposable cleanup before retiring execution. Set its protected
+`DISPOSABLE_CLEANUP_CONFIRMATION` to the exact cleanup destination. The deployment
+profile never automatically deletes the service. A failed/partial cold setup
+still needs the separate cleanup workflow and state review; runner retirement
+alone does not remove partially provisioned application resources.
 
 Create main-only protected environment `azure-execution`, dedicated federated
 `AZURE_CLIENT_ID`, and `EXECUTION_CONFIG_JSON`:

@@ -152,7 +152,7 @@ These checks demonstrate working paths, not full cloud acceptance. See
 [cloud acceptance status](docs/cloud-acceptance-status.md) and
 [workflow execution status](docs/workflow-coverage.md#execution-status).
 
-Local revalidation on 19 October 2026 passed 315 gateway/tooling tests, Ruff,
+Local revalidation on 19 October 2026 passed 316 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;

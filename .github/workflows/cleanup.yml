@@ -1,7 +1,12 @@
 name: Cleanup Azure deployment
+run-name: 'cleanup ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
       validation_only:
         description: Test safeguards without accessing or deleting Azure resources
         type: boolean
