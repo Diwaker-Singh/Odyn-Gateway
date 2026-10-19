@@ -569,6 +569,22 @@ class LifecycleTests(unittest.TestCase):
             self.real_preflight()
         gh.assert_not_called()
 
+    def test_disabled_cleanup_blocks_disposable_allocation(self):
+        flags = {name: "true" for name in self.module.REQUIRED_FLAGS}
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "LIFECYCLE_TARGET": "disposable",
+                    "LIFECYCLE_FLAGS_JSON": json.dumps(flags),
+                },
+            ),
+            patch.object(self.module, "gh") as gh,
+            self.assertRaises(ValueError),
+        ):
+            self.real_preflight()
+        gh.assert_not_called()
+
     def test_validation_only_child_success_is_not_cloud_success(self):
         env = {
             "GITHUB_REPOSITORY": "owner/repo",

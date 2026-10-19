@@ -33,6 +33,11 @@ def preflight():
     flags = json.loads(os.environ["LIFECYCLE_FLAGS_JSON"])
     if any(flags.get(name) != "true" for name in REQUIRED_FLAGS):
         raise ValueError("Every component enable flag must be explicitly true")
+    if (
+        os.environ.get("LIFECYCLE_TARGET") == "disposable"
+        and flags.get("AZURE_CLEANUP_ENABLED") != "true"
+    ):
+        raise ValueError("Disposable lifecycle requires enabled protected cleanup")
     runs = gh(
         "run",
         "list",
