@@ -50,6 +50,8 @@ def config():
         raise ValueError("Use a dedicated private /24 execution network")
     if not isinstance(value["minutes"], int) or not 10 <= value["minutes"] <= 180:
         raise ValueError("Execution lifetime must be 10–180 whole minutes")
+    if not isinstance(value.get("retain_group", False), bool):
+        raise TypeError("retain_group must be a boolean")
     subscription = os.environ["AZURE_SUBSCRIPTION_ID"]
     uuid.UUID(subscription)
     uuid.UUID(os.environ["AZURE_TENANT_ID"])
@@ -562,6 +564,59 @@ def start(value):
     raise RuntimeError("Runner readiness timed out; run protected stop workflow")
 
 
+def retire_resources(value):
+    """Keep a free IAM scope while removing its billable execution resources.
+
+    Complete-mode deletion is confined to an owned dedicated group. Unexpected
+    resource types stop retirement rather than silently deleting manual additions.
+    """
+    group = value["group"]
+    allowed = {
+        "microsoft.network/virtualnetworks": {"execution"},
+        "microsoft.network/networksecuritygroups": {"runner"},
+        "microsoft.network/publicipaddresses": {"egress"},
+        "microsoft.network/networkinterfaces": {"runner"},
+        "microsoft.compute/virtualmachines": {"runner"},
+        "microsoft.compute/virtualmachines/runcommands": {
+            "runner/register",
+            "runner/retire",
+        },
+        "microsoft.devtestlab/schedules": {"shutdown-computevm-runner"},
+    }
+    for resource in az("resource", "list", "-g", group):
+        kind, name = resource["type"].lower(), resource["name"].lower()
+        if kind == "microsoft.compute/disks" and name.startswith("runner_osdisk_"):
+            continue
+        if name not in allowed.get(kind, set()):
+            raise ValueError(
+                "Unexpected resource in execution scope; inspect before retirement"
+            )
+    template = {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "resources": [],
+    }
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "empty.json"
+        path.write_text(json.dumps(template))
+        path.chmod(0o600)
+        az(
+            "deployment",
+            "group",
+            "create",
+            "-g",
+            group,
+            "-n",
+            "retire-execution",
+            "--mode",
+            "Complete",
+            "--template-file",
+            str(path),
+        )
+    if az("resource", "list", "-g", group):
+        raise RuntimeError("Execution resources remain in the retained group")
+
+
 def stop(value, only_run=None):
     group = value["group"]
     if az("group", "exists", "-n", group):
@@ -604,8 +659,11 @@ def stop(value, only_run=None):
                 else:
                     raise RuntimeError("Runner deregistration timed out")
         network_links(value, remove=True)
-        az("group", "delete", "-n", group, "--yes")
-    if az("group", "exists", "-n", group):
+        if value.get("retain_group", False):
+            retire_resources(value)
+        else:
+            az("group", "delete", "-n", group, "--yes")
+    if not value.get("retain_group", False) and az("group", "exists", "-n", group):
         raise RuntimeError("Execution group still exists")
     name = "odyn-" + group.rsplit("-", 1)[1]
     runners = (
@@ -632,7 +690,17 @@ def stop(value, only_run=None):
                     f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runners/{runner['id']}",
                 ]
             )
-    print(json.dumps({"schema": 1, "status": "absent", "group": group}))
+    print(
+        json.dumps(
+            {
+                "schema": 1,
+                "status": "retained_empty"
+                if value.get("retain_group", False)
+                else "absent",
+                "group": group,
+            }
+        )
+    )
 
 
 def main():

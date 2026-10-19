@@ -253,6 +253,44 @@ class ExecutionTests(unittest.TestCase):
             M.stop(self.config(), only_run="new")
         self.assertFalse(any("delete" in call.args for call in az.call_args_list))
 
+    def test_retained_scope_removes_resources_without_deleting_iam_group(self):
+        def command(*args):
+            if args[:3] == ("deployment", "group", "create"):
+                path = Path(args[-1])
+                self.assertEqual(json.loads(path.read_text())["resources"], [])
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertIn("Complete", args)
+                return {}
+            return []
+
+        with patch.object(M, "az", side_effect=command) as az:
+            M.retire_resources(self.config())
+        self.assertFalse(
+            any(call.args[:2] == ("group", "delete") for call in az.call_args_list)
+        )
+
+    def test_unexpected_execution_resource_blocks_complete_mode(self):
+        with (
+            patch.object(
+                M,
+                "az",
+                return_value=[
+                    {"name": "manual", "type": "Microsoft.Storage/storageAccounts"}
+                ],
+            ) as az,
+            self.assertRaises(ValueError),
+        ):
+            M.retire_resources(self.config())
+        self.assertEqual(az.call_count, 1)
+
+    def test_retained_resource_check_must_be_empty_after_retirement(self):
+        resources = [{"name": "runner", "type": "Microsoft.Compute/virtualMachines"}]
+        with (
+            patch.object(M, "az", side_effect=[resources, {}, resources]),
+            self.assertRaises(RuntimeError),
+        ):
+            M.retire_resources(self.config())
+
 
 class GroupAdoptionTests(unittest.TestCase):
     @classmethod

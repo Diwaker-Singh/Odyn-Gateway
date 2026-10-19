@@ -103,6 +103,16 @@ links and runner registrations. Precreated, empty bootstrap-owned destination
 groups are imported by the delivery workflow before planning; nonempty groups
 or missing state for existing resources require explicit recovery.
 
+For a permanent execution identity scoped to its dedicated resource group, set
+`"retain_group": true` in `EXECUTION_CONFIG_JSON`. Retirement then removes the
+runner VM, disks and networking while retaining the empty resource group and
+its scoped permissions for the next start. It rejects unexpected resources and
+verifies the group contains no resources after retirement. This optional path
+has local regression coverage; its Azure execution has not yet been verified.
+The default remains full execution-group deletion. Retaining this execution
+scope does not retain or restore application/foundation group permissions after
+their separate deletion, and does not establish full cold recreation.
+
 Configure protected environment `azure-lifecycle`, enable
 `AZURE_LIFECYCLE_ENABLED`, and configure all component enable flags/backends /
 variables first. Management config must refer to the execution subnet
