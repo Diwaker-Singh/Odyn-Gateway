@@ -15,6 +15,14 @@ on:
         description: Approved setup deadline, 10–150 minutes; execution lease must cover setup and retirement
         type: number
         default: 50
+      recovery_run_id:
+        description: Optional successful state archive run for the deployment profile
+        type: string
+        required: false
+      recovery_sha256:
+        description: Required encrypted archive SHA-256 when restoring saved state
+        type: string
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -45,5 +53,8 @@ jobs:
           LIFECYCLE_FLAGS_JSON: ${{ toJSON(vars) }}
           LIFECYCLE_TARGET: ${{ inputs.target }}
           DISPOSABLE_CLEANUP_CONFIRMATION: ${{ vars.DISPOSABLE_CLEANUP_CONFIRMATION }}
+          LIFECYCLE_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          LIFECYCLE_RECOVERY_SHA256: ${{ inputs.recovery_sha256 }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           SETUP_MINUTES: ${{ inputs.setup_minutes }}
         run: python scripts/lifecycle.py --execute --minutes "$SETUP_MINUTES"

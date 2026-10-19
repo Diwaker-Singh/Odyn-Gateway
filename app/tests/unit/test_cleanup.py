@@ -45,6 +45,7 @@ class CleanupTests(unittest.TestCase):
         self.directory = Path(self.temp.name)
         self.env = {
             "PLAN_ENCRYPTION_KEY": base64.b64encode(self.key).decode(),
+            "RECOVERY_ENCRYPTION_KEY": base64.b64encode(os.urandom(32)).decode(),
             "CLEANUP_CONFIRMATION": "delete sub rg-odyn-gateway-demo10",
             "GITHUB_STEP_SUMMARY": str(self.directory / "summary"),
         }
@@ -166,8 +167,10 @@ class CleanupTests(unittest.TestCase):
                 Path(args[args.index("--file") + 1]).write_text(
                     json.dumps(
                         {
-                            "resources": [],
-                            "lineage": "lineage",
+                            "version": 4,
+                            "serial": 1,
+                            "resources": [{}],
+                            "lineage": "12345678-1234-1234-1234-123456789abc",
                             "private": "SECRET_MARKER",
                         }
                     )
@@ -182,7 +185,7 @@ class CleanupTests(unittest.TestCase):
         ):
             M.prepare(self.directory / "snapshot")
         self.assertEqual(sum("download" in c for c in calls), 3)
-        self.assertEqual(sum("upload" in c for c in calls), 1)
+        self.assertEqual(sum("upload" in c for c in calls), 2)
         self.assertEqual(list((self.directory / "snapshot").glob("*.tfstate")), [])
         self.assertNotIn(
             b"SECRET_MARKER", (self.directory / "snapshot/recovery.enc").read_bytes()
@@ -192,6 +195,15 @@ class CleanupTests(unittest.TestCase):
             (self.directory / "snapshot/recovery.enc").stat().st_mode & 0o777, 0o600
         )
         self.d.delete.assert_not_called()
+        canonical = (
+            self.directory / "snapshot/state-recovery/recovery.enc"
+        ).read_bytes()
+        with patch.dict(os.environ, self.env):
+            states = M.recovery.open_archive(
+                canonical, M.hashlib.sha256(canonical).hexdigest(), "sub"
+            )
+        self.assertEqual(set(states), {"application", "bootstrap", "registry"})
+        self.assertNotIn(b"SECRET_MARKER", canonical)
 
     def test_workflow_defaults_safe_and_requires_separate_approval(self):
         text = (ROOT / ".github/workflows/cleanup.yml").read_text()

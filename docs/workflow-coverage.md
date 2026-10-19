@@ -70,6 +70,7 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 |---|---|
 | Exact-source CI | [Latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain); inspect the run source SHA and all 12 jobs, including image scans. |
 | Private execution bootstrap | [39163453137](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137), passed all four jobs for `19686c4`: validation, isolated runner creation, tool/credential-isolation probe and automatic retirement. |
+| App-authenticated execution | On 19 October, [39210974646](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39210974646) passed creation and the isolated probe, then was cancelled before obsolete retirement code ran. Corrected retirement [39211831808](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39211831808) passed for `485d8ed`: no execution resources remained and the empty group's scoped Contributor assignment was retained. These are separate component results, not one fully passing lifecycle. |
 | Lifecycle controller | [39163289856](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163289856), validation-only dispatch passed; orchestration/skip/source/failure guards have local tests. Full topology recreation has not run. |
 | Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
 | Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
@@ -81,10 +82,23 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 | Cleanup | [39158982129](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129), passed for `3b7dcdd`: encrypted durable recovery, protected deletion and final absence checks on the isolated fixture. No live cleanup ran. |
 
 The successful cloud runs refer to the exact source linked above, not subsequent
-workflow edits. The temporary runner/network group and isolated test-management group were removed after verification. The primary management backend and live demo remain. Recreate approved private execution before future delivery. The existing application is retained. OIDC trust used exact
+workflow edits. The temporary runner/network group and isolated test-management
+group were removed after verification. On 19 October the owner requested
+retirement of all billable gateway resources, with encrypted state preservation
+and empty permission anchors retained. The static client is not proof of a
+running API. Recreate approved private execution before future delivery.
+OIDC trust used exact
 observed immutable owner/repository-ID subjects. The initial test found and fixed
 missing runner tools, an OIDC subject mismatch, and missing registry metadata
 Reader access; these were not application deployment tests.
+
+The 19 October disposable cold controller [39212823565](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39212823565)
+did not pass its protected execution gate. Automatic approval review was
+unavailable, the approved window expired, and the run was cancelled before
+allocation. Full cold recreation remains unverified. Provisioning flags are
+disabled while the requested cost-retirement work is completed. The final
+read-only edge check passed health, HSTS, unauthenticated rejection and CORS;
+it made no valid chat/provider request.
 
 Interactive human SSO, secret entry and administrative identity grants remain
 intentional operator boundaries. Credential-free success does not establish

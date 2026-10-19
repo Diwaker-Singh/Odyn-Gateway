@@ -83,3 +83,9 @@ storage, binds deletion to reviewed inventory and the same source/run/identity,
 and requires typed confirmation plus an environment approval. See the
 [pipeline lifecycle guide](../docs/pipeline-lifecycle.md). These commands can
 create costs or delete resources when their explicit execution modes are used.
+
+`state-recovery.py` creates/verifies encrypted state archives and restores only
+into absent state blobs using scoped Entra access, atomic create conditions and
+byte-for-byte readback. Its protected workflow and staged lifecycle integration
+are described in [state recovery](../docs/state-recovery.md). Restoring state is
+separate from recreating resources or recovering provider credentials.

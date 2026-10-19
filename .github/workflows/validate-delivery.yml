@@ -19,7 +19,7 @@ jobs:
         env:
           PYTHONPATH: app/src:app/tests
         run: |
-          python -m unittest app.tests.unit.test_delivery app.tests.unit.test_teardown app.tests.unit.test_cleanup app.tests.unit.test_management app.tests.unit.test_execution app.tests.unit.test_local_chat_ui app.tests.unit.test_cloud_smoke -v
+          python -m unittest app.tests.unit.test_delivery app.tests.unit.test_teardown app.tests.unit.test_cleanup app.tests.unit.test_management app.tests.unit.test_execution app.tests.unit.test_state_recovery app.tests.unit.test_local_chat_ui app.tests.unit.test_cloud_smoke -v
           python -m compileall -q scripts
           bash -n scripts/deploy.sh scripts/set-provider-key.sh scripts/execution-install.sh scripts/execution-start.sh
           python scripts/execution.py --help

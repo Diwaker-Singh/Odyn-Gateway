@@ -1,0 +1,142 @@
+name: Preserve or restore Terraform state
+run-name: 'state-recovery ${{ inputs.orchestration_id }}'
+on:
+  workflow_dispatch:
+    inputs:
+      orchestration_id:
+        description: Optional lifecycle controller correlation ID
+        type: string
+        required: false
+      validation_only:
+        description: Validate safeguards without secrets or Azure writes
+        type: boolean
+        default: true
+      action:
+        type: choice
+        options: [archive, restore-foundation, restore-application, restore-bootstrap, restore-registry]
+        default: archive
+      encrypted_snapshot:
+        description: Base64 of an already-encrypted archive, never plaintext or its key
+        type: string
+        required: false
+      snapshot_sha256:
+        description: SHA-256 of the encrypted archive
+        type: string
+        required: false
+      archive_run_id:
+        description: Successful archive run from this workflow
+        type: string
+        required: false
+      confirmation:
+        description: 'For restore: restore SUBSCRIPTION_ID foundation (or application)'
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: ${{ inputs.validation_only && format('state-validation-{0}', github.run_id) || 'azure-resource-mutation' }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-delivery.yml
+  archive:
+    needs: validate
+    if: ${{ !inputs.validation_only && inputs.action == 'archive' && github.ref == 'refs/heads/main' }}
+    environment: azure-recovery-archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - name: Authenticate the encrypted backup without any Azure access
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RECOVERY_ENCRYPTION_KEY: ${{ secrets.RECOVERY_ENCRYPTION_KEY }}
+          SNAPSHOT_SHA256: ${{ inputs.snapshot_sha256 }}
+        run: python scripts/state-recovery.py archive --archive "$RUNNER_TEMP/state-recovery/recovery.enc" --sha256 "$SNAPSHOT_SHA256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-state-recovery
+          path: ${{ runner.temp }}/state-recovery/recovery.enc
+          retention-days: 90
+          if-no-files-found: error
+      - name: Remove temporary ciphertext
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/state-recovery"
+  restore:
+    needs: validate
+    if: ${{ !inputs.validation_only && startsWith(inputs.action, 'restore-') && github.ref == 'refs/heads/main' && vars.STATE_RECOVERY_ENABLED == 'true' }}
+    environment: ${{ inputs.action == 'restore-application' && 'azure-recovery-application' || 'azure-recovery-foundation' }}
+    runs-on: [self-hosted, linux, x64, odyn-azure]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      SNAPSHOT_SHA256: ${{ inputs.snapshot_sha256 }}
+      ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
+      RESTORE_COMPONENT: ${{ inputs.action == 'restore-foundation' && 'foundation' || inputs.action == 'restore-bootstrap' && 'bootstrap' || inputs.action == 'restore-registry' && 'registry' || 'application' }}
+      RESTORE_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - name: Require passing CI for this source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          runs = json.loads(subprocess.check_output(['gh', 'run', 'list', '--repo', os.environ['GITHUB_REPOSITORY'], '--workflow', 'ci.yml', '--commit', os.environ['GITHUB_SHA'], '--json', 'status,conclusion,event,headSha']))
+          assert any(r['headSha'] == os.environ['GITHUB_SHA'] and r['event'] == 'push' and r['status'] == 'completed' and r['conclusion'] == 'success' for r in runs), 'Exact-source push CI must pass before restoration'
+          PY
+      - name: Validate the archive workflow origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          run_id = os.environ['ARCHIVE_RUN_ID']
+          assert run_id.isdigit(), 'Numeric archive run required'
+          result = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}"]))
+          allowed = {'.github/workflows/state-recovery.yml': 'archive', '.github/workflows/cleanup.yml': 'snapshot'}
+          assert result['path'] in allowed and result['status'] == 'completed'
+          assert result['head_branch'] == 'main'
+          assert result['event'] == 'workflow_dispatch'
+          jobs = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}/jobs?per_page=100"]))['jobs']
+          assert any(j['name'] == allowed[result['path']] and j['conclusion'] == 'success' for j in jobs), 'Archive/snapshot job must succeed; a failed deletion does not invalidate its preserved state'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: encrypted-state-recovery
+          path: ${{ runner.temp }}/state-recovery/
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.archive_run_id }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Restore only into empty, precreated private backends
+        env:
+          STATE_BACKENDS_JSON: ${{ secrets.STATE_BACKENDS_JSON }}
+          RECOVERY_ENCRYPTION_KEY: ${{ secrets.RECOVERY_ENCRYPTION_KEY }}
+        run: python scripts/state-recovery.py restore --archive "$RUNNER_TEMP/state-recovery/recovery.enc" --sha256 "$SNAPSHOT_SHA256" --component "$RESTORE_COMPONENT" --confirmation "$RESTORE_CONFIRMATION"
+      - name: Remove temporary ciphertext and local Azure session
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/state-recovery"
+          az logout || true

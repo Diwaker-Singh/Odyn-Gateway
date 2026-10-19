@@ -585,6 +585,72 @@ class LifecycleTests(unittest.TestCase):
             self.real_preflight()
         gh.assert_not_called()
 
+    def test_recovery_hydrates_state_between_backend_stages(self):
+        environment = {
+            "GITHUB_REF": "refs/heads/main",
+            "LIFECYCLE_TARGET": "deployment",
+            "LIFECYCLE_RECOVERY_RUN_ID": "123",
+            "LIFECYCLE_RECOVERY_SHA256": "a" * 64,
+            "AZURE_SUBSCRIPTION_ID": "b" * 36,
+        }
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(self.module, "dispatch", return_value=42) as dispatch,
+        ):
+            self.module.recreate(60)
+        calls = dispatch.call_args_list
+        names = [
+            (c.args[0], c.args[1].get("action", c.args[1].get("component")))
+            for c in calls
+        ]
+        self.assertEqual(
+            names[2:6],
+            [
+                ("state-recovery.yml", "restore-foundation"),
+                ("infrastructure.yml", "bootstrap"),
+                ("state-recovery.yml", "restore-application"),
+                ("infrastructure.yml", "registry"),
+            ],
+        )
+        self.assertEqual(calls[2].args[1]["archive_run_id"], "123")
+        self.assertEqual(
+            calls[4].args[1]["confirmation"], "restore " + "b" * 36 + " application"
+        )
+
+    def test_recovery_not_allowed_into_disposable_profile(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "GITHUB_REF": "refs/heads/main",
+                    "LIFECYCLE_TARGET": "disposable",
+                    "LIFECYCLE_RECOVERY_RUN_ID": "123",
+                    "LIFECYCLE_RECOVERY_SHA256": "a" * 64,
+                    "AZURE_SUBSCRIPTION_ID": "b" * 36,
+                },
+            ),
+            patch.object(self.module, "dispatch") as dispatch,
+            self.assertRaises(ValueError),
+        ):
+            self.module.recreate(60)
+        dispatch.assert_not_called()
+
+    def test_disabled_recovery_blocks_allocation(self):
+        flags = {name: "true" for name in self.module.REQUIRED_FLAGS}
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "LIFECYCLE_RECOVERY_RUN_ID": "123",
+                    "LIFECYCLE_FLAGS_JSON": json.dumps(flags),
+                },
+            ),
+            patch.object(self.module, "gh") as gh,
+            self.assertRaises(ValueError),
+        ):
+            self.real_preflight()
+        gh.assert_not_called()
+
     def test_validation_only_child_success_is_not_cloud_success(self):
         env = {
             "GITHUB_REPOSITORY": "owner/repo",

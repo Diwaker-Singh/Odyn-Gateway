@@ -2,12 +2,17 @@
 
 Odyn Gateway is a Python API service that authenticates callers, applies shared request and spend controls, and forwards bounded chat requests to a configured model provider. It uses FastAPI at the HTTP boundary and keeps authorization, admission, provider handling, and accounting in testable gateway components. Azure is the implemented cloud adapter; the AWS directory preserves the Terraform interface as a documented skeleton.
 
+**Demo status:** Azure service retirement was requested on 19 October 2026 to
+stop ongoing charges. Provisioning is disabled. The static client and recorded
+demo remain available; the live API must be rebuilt before use. See
+[state recovery](docs/state-recovery.md) for encrypted backup and pipeline recovery.
+
 ## Architecture
 
 The [architecture review](docs/architecture-review.md) compares both interviewer
 briefs and recommends APIM as a single public edge for the updated scope.
 The current deployment diagram below retains Front Door/WAF; simplifying that
-running topology requires a separately tested pipeline migration.
+topology requires a separately tested pipeline migration when redeployed.
 
 ```mermaid
 ---
@@ -152,7 +157,7 @@ These checks demonstrate working paths, not full cloud acceptance. See
 [cloud acceptance status](docs/cloud-acceptance-status.md) and
 [workflow execution status](docs/workflow-coverage.md#execution-status).
 
-Local revalidation on 19 October 2026 passed 317 gateway/tooling tests, Ruff,
+Local revalidation on 19 October 2026 passed 338 gateway/tooling tests, Ruff,
 mypy, repository policy and configuration checks. The preceding hosted UI
 validation passed 5 configuration tests and the production build. The module
 and Azure environment passed Terraform validation after the edge-policy change;
@@ -235,6 +240,7 @@ bootstrapping, deployment, cleanup and recreation instructions:
 | Entry point | `lifecycle.yml` | Sequence setup at one main revision, require real component success and retire execution. |
 | 0 | `execution.yml` | Create bounded independent private execution and restore configured group-scoped permissions. |
 | 1 | `management.yml` | Create durable automation state through ARM; no existing Terraform backend needed. |
+| Optional recovery | `state-recovery.yml` | Preserve an encrypted archive; hydrate foundation states after management bootstrap and application state after state-storage bootstrap. Never overwrite an existing blob. |
 | 2 | `infrastructure.yml` — bootstrap | Create application state storage using the management backend. |
 | 3 | `infrastructure.yml` — registry | Provision the image registry. |
 | 4 | `release.yml` | Build, scan, publish and verify digest-pinned images. |
@@ -245,7 +251,9 @@ bootstrapping, deployment, cleanup and recreation instructions:
 All cloud-mutating workflows default to validation only. Administrative OIDC
 trust, scoped roles, private runners, enable flags and environment approvals
 must be configured first. Cleanup needs an independent runner outside the
-application network; it is **not automatic** and has not deleted the demo.
+application network. Its full group-deletion mode removes scoped permissions;
+cost retirement can instead retain empty permission anchors. See the recovery
+guide before choosing a teardown/rebuild strategy.
 The static UI uses its separate Pages workflow.
 
 `lifecycle.yml` orchestrates these setup stages and retires temporary execution

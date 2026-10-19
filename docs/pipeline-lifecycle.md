@@ -51,6 +51,12 @@ manual checks can still use `cloud-smoke.py --chat-url` with a trusted endpoint.
 
 ### Configure independent execution once
 
+For recovery after retiring billable resources, use the
+[state recovery procedure](state-recovery.md). Optional lifecycle inputs
+`recovery_run_id` and `recovery_sha256` insert protected state restoration between
+the backend bootstrap stages; they do not bypass saved plans or restore a
+provider credential. Empty group/IAM anchors can remain without active resources.
+
 Component workflows and the lifecycle controller accept `target=deployment`
 (default) or `target=disposable`. Disposable management, foundation, release,
 deployment and operations use separate protected `azure-test-*` environments.

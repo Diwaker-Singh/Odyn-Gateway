@@ -53,6 +53,7 @@ jobs:
       BOOTSTRAP_BACKEND_JSON: ${{ secrets.BOOTSTRAP_BACKEND_JSON }}
       REGISTRY_BACKEND_JSON: ${{ secrets.REGISTRY_BACKEND_JSON }}
       PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+      RECOVERY_ENCRYPTION_KEY: ${{ secrets.RECOVERY_ENCRYPTION_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,6 +74,12 @@ jobs:
           name: encrypted-cleanup-recovery
           path: ${{ runner.temp }}/cleanup-${{ github.run_id }}/recovery.enc
           retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-state-recovery
+          path: ${{ runner.temp }}/cleanup-${{ github.run_id }}/state-recovery/recovery.enc
+          retention-days: 90
           if-no-files-found: error
       - name: Remove private runner files
         if: always()

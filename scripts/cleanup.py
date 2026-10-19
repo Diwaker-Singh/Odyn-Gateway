@@ -23,6 +23,11 @@ SPEC = importlib.util.spec_from_file_location(
 )
 teardown = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(teardown)
+RECOVERY_SPEC = importlib.util.spec_from_file_location(
+    "odyn_state_recovery", Path(__file__).with_name("state-recovery.py")
+)
+recovery = importlib.util.module_from_spec(RECOVERY_SPEC)
+RECOVERY_SPEC.loader.exec_module(recovery)
 
 
 def digest(value):
@@ -123,6 +128,7 @@ def prepare(directory):
         )
     directory.mkdir(parents=True, mode=0o700, exist_ok=False)
     states = {}
+    state_bytes = {}
     for name, config in (
         ("application", app),
         ("bootstrap", management),
@@ -155,11 +161,23 @@ def prepare(directory):
                 "none",
             ]
         )
-        state = json.loads(target.read_text())
+        raw_state = target.read_bytes()
+        state = json.loads(raw_state)
         if not isinstance(state.get("resources"), list) or not state.get("lineage"):
             raise ValueError("Invalid recovered Terraform state")
         states[name] = state
+        state_bytes[name] = base64.b64encode(raw_state).decode()
         target.unlink()
+    # The long-lived restore archive is separate from the short-lived deletion
+    # approval receipt, and uses its own protected recovery key.
+    restorable = recovery.seal(
+        {"schema": 1, "subscription": d.subscription, "states": state_bytes},
+        d.subscription,
+    )
+    restore_path = directory / "state-recovery" / "recovery.enc"
+    restore_path.parent.mkdir(mode=0o700)
+    restore_path.write_bytes(restorable)
+    restore_path.chmod(0o600)
     receipt = context | {
         "schema": 1,
         "created": int(time.time()),
@@ -201,6 +219,34 @@ def prepare(directory):
             "none",
         ]
     )
+    restore_blob = (
+        f"recovery/state/{context['run']}/{hashlib.sha256(restorable).hexdigest()}.enc"
+    )
+    teardown.command(
+        [
+            "az",
+            "storage",
+            "blob",
+            "upload",
+            "--account-name",
+            management["storage_account_name"],
+            "--container-name",
+            management["container_name"],
+            "--name",
+            restore_blob,
+            "--file",
+            str(restore_path),
+            "--auth-mode",
+            "login",
+            "--overwrite",
+            "false",
+            "--subscription",
+            d.subscription,
+            "--only-show-errors",
+            "-o",
+            "none",
+        ]
+    )
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
         stream.write(
             "### Cleanup review\nEncrypted recovery snapshot uploaded to retained management storage.\n"
@@ -211,6 +257,9 @@ def prepare(directory):
         )
         stream.write(
             f"Recovery SHA-256: `{hashlib.sha256(encrypted).hexdigest()}`\nRecovery blob: `{blob}`\nManagement storage is retained and continues to incur small charges.\n"
+        )
+        stream.write(
+            f"Restorable state archive SHA-256: `{hashlib.sha256(restorable).hexdigest()}`\nState archive blob: `{restore_blob}`\n"
         )
 
 

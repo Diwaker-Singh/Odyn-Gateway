@@ -108,6 +108,35 @@ def main():
                 if step.get("uses", "").startswith("actions/upload-artifact"):
                     assert ".tfplan" not in step["with"]["path"]
                     assert ".tfvars" not in step["with"]["path"]
+    recovery = yaml.safe_load(
+        (ROOT / ".github/workflows/state-recovery.yml").read_text()
+    )
+    recovery_triggers = recovery.get("on", recovery.get(True))
+    assert list(recovery_triggers) == ["workflow_dispatch"]
+    assert (
+        recovery_triggers["workflow_dispatch"]["inputs"]["validation_only"]["default"]
+        is True
+    )
+    assert recovery["permissions"] == {"contents": "read"}
+    assert recovery["jobs"]["archive"]["environment"] == "azure-recovery-archive"
+    assert "STATE_RECOVERY_ENABLED" in recovery["jobs"]["restore"]["if"]
+    assert recovery["jobs"]["restore"]["runs-on"] == [
+        "self-hosted",
+        "linux",
+        "x64",
+        "odyn-azure",
+    ]
+    assert any(
+        step.get("name") == "Require passing CI for this source"
+        for step in recovery["jobs"]["restore"]["steps"]
+    )
+    assert not any(
+        step.get("uses", "").startswith("azure/login")
+        for step in recovery["jobs"]["archive"]["steps"]
+    )
+    for step in recovery["jobs"]["archive"]["steps"]:
+        if step.get("uses", "").startswith("actions/upload-artifact"):
+            assert step["with"]["path"].endswith("/recovery.enc")
     operations = yaml.safe_load((ROOT / ".github/workflows/operations.yml").read_text())
     triggers = operations.get("on", operations.get(True))
     assert list(triggers) == ["workflow_dispatch"]

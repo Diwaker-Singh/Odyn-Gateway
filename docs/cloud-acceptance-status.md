@@ -1,17 +1,19 @@
 # Cloud acceptance status
 
-**Refreshed 19 October 2026 (IST).** The Azure assessment deployment is
-operational. Cloud acceptance remains **partial**: delivery automation has
+**Refreshed 19 October 2026 (IST).** The Azure assessment deployment is being
+retired at the owner's request to stop charges; provisioning is disabled.
+The deployment observations below are historical, not a current availability
+claim. Cloud acceptance remains **partial**: delivery automation has
 passed, while several security, load and operational claims below retain
 explicit limits. Local success is not cloud proof.
 
-## Current deployment and delivery
+## Pre-retirement deployment and delivery
 
 - [Application Actions run 38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780)
   passed for source `7bca5c1`: the reviewed saved plan was applied, a full second
   plan returned no changes, the new revision became ready, and public
   health/HSTS, authentication rejection and exact-origin CORS checks passed.
-- The deployed revision is `ca-odyn-gateway-demo10--0000008`. Read-only checks
+- The last deployed revision was `ca-odyn-gateway-demo10--0000008`. Read-only checks
   on 19 October confirmed that it is the latest ready revision, APIM reports
   `Succeeded`, and the `chat-request-schema` deployment reports `Succeeded`.
   Runtime images are pinned to the verified remote manifest references from
@@ -90,7 +92,7 @@ configuration contains public client settings and the gateway endpoint. The
 provider credential remains in Key Vault; no secret value belongs in source,
 state outputs, logs, recordings or CI output.
 
-Local revalidation on 19 October passed 317 tests plus formatting, types,
+Local revalidation on 19 October passed 338 tests plus formatting, types,
 configuration, repository policy, compilation and secret checks. Those checks,
 image scans and historical application observations do not close the remaining
 cloud limits above. Raw state, plans, logs, credentials and private transcripts

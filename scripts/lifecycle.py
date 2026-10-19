@@ -26,6 +26,7 @@ REQUIRED_JOBS = {
     "deploy.yml": "apply",
     "operations.yml": "health",
     "cleanup.yml": "delete",
+    "state-recovery.yml": "restore",
 }
 
 
@@ -38,6 +39,11 @@ def preflight():
         and flags.get("AZURE_CLEANUP_ENABLED") != "true"
     ):
         raise ValueError("Disposable lifecycle requires enabled protected cleanup")
+    if (
+        os.environ.get("LIFECYCLE_RECOVERY_RUN_ID")
+        and flags.get("STATE_RECOVERY_ENABLED") != "true"
+    ):
+        raise ValueError("State restoration must be explicitly enabled")
     runs = gh(
         "run",
         "list",
@@ -213,6 +219,17 @@ def recreate(minutes):
     target = os.environ.get("LIFECYCLE_TARGET", "deployment")
     if target not in ("deployment", "disposable"):
         raise ValueError("Unknown protected configuration profile")
+    recovery_run = os.environ.get("LIFECYCLE_RECOVERY_RUN_ID", "")
+    recovery_hash = os.environ.get("LIFECYCLE_RECOVERY_SHA256", "")
+    if (recovery_run or recovery_hash) and (
+        target != "deployment"
+        or not recovery_run.isdigit()
+        or not re.fullmatch(r"[a-f0-9]{64}", recovery_hash)
+        or not re.fullmatch(
+            r"[a-f0-9-]{36}", os.environ.get("AZURE_SUBSCRIPTION_ID", "")
+        )
+    ):
+        raise ValueError("Invalid archive binding or recovery profile")
     cleanup_confirmation = os.environ.get("DISPOSABLE_CLEANUP_CONFIRMATION", "")
     if target == "disposable" and not re.fullmatch(
         r"delete [a-f0-9-]{36} rg-odyn-gateway-[a-z0-9]{2,8}",
@@ -225,6 +242,21 @@ def recreate(minutes):
     execution_started = False
     try:
         for workflow, inputs in stages():
+            if (
+                recovery_run
+                and workflow == "infrastructure.yml"
+                and inputs.get("component") == "bootstrap"
+            ):
+                dispatch(
+                    "state-recovery.yml",
+                    {
+                        "action": "restore-foundation",
+                        "archive_run_id": recovery_run,
+                        "snapshot_sha256": recovery_hash,
+                        "confirmation": f"restore {os.environ['AZURE_SUBSCRIPTION_ID']} foundation",
+                    },
+                    deadline,
+                )
             if workflow != "execution.yml":
                 inputs = inputs | {"target": target}
             if workflow == "deploy.yml":
@@ -234,6 +266,21 @@ def recreate(minutes):
                 execution_started = True
             if workflow == "release.yml":
                 release = result
+            if (
+                recovery_run
+                and workflow == "infrastructure.yml"
+                and inputs.get("component") == "bootstrap"
+            ):
+                dispatch(
+                    "state-recovery.yml",
+                    {
+                        "action": "restore-application",
+                        "archive_run_id": recovery_run,
+                        "snapshot_sha256": recovery_hash,
+                        "confirmation": f"restore {os.environ['AZURE_SUBSCRIPTION_ID']} application",
+                    },
+                    deadline,
+                )
         if target == "disposable":
             dispatch(
                 "cleanup.yml",

@@ -78,6 +78,21 @@ pipeline. A public demo is not production qualification.
 
 ## Safe migration of the existing demo
 
+### Cost choice for a future deployment
+
+| Option | Illustrative base-fee saving | Trade-off |
+|---|---|---|
+| Front Door Standard instead of Premium | Microsoft's comparison lists USD 35 versus USD 330/month: USD 295/month, about 89%, before usage and agreement-specific pricing. | Standard supports custom WAF rules, but not the managed rule set configured here or Private Link origins. It is a different security profile, not a drop-in SKU edit. |
+| APIM as the only public edge | Removes Front Door's base and traffic meters entirely. | Requires the reviewed origin/network/policy/client changes above and fresh acceptance testing. |
+| Delete an idle assessment deployment | Removes its active resource usage once deletion completes. | The demo is offline until rebuilt; historical charges can still arrive later. |
+
+Sources: [Microsoft's illustrative tier pricing](https://learn.microsoft.com/en-us/azure/frontdoor/understanding-pricing)
+and [Front Door origin security](https://learn.microsoft.com/en-us/azure/frontdoor/origin-security).
+No lower-cost topology is claimed implemented or tested. For an idle assessment,
+retirement is preferable to paying for a smaller always-on edge. Disabling
+pipeline flags prevents provisioning; it does not stop billing for resources
+that already exist.
+
 The running deployment still uses Front Door/WAF. This review does not remove
 it or claim the simpler topology has been implemented. Before switching:
 
