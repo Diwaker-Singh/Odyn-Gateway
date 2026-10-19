@@ -2,6 +2,11 @@ name: Recreate Azure environment
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       validation_only:
         description: Validate orchestration without dispatching Azure workflows
         type: boolean
@@ -38,5 +43,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LIFECYCLE_FLAGS_JSON: ${{ toJSON(vars) }}
+          LIFECYCLE_TARGET: ${{ inputs.target }}
           SETUP_MINUTES: ${{ inputs.setup_minutes }}
         run: python scripts/lifecycle.py --execute --minutes "$SETUP_MINUTES"

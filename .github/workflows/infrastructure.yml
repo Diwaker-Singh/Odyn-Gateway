@@ -3,6 +3,11 @@ run-name: 'infrastructure ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       orchestration_id:
         description: Optional lifecycle controller correlation ID
         type: string
@@ -25,22 +30,13 @@ concurrency:
 defaults:
   run:
     shell: bash
-env:
-  ODYN_INFRA_COMPONENT: ${{ inputs.component }}
-  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-  AZURE_RESOURCE_GROUP: ${{ inputs.component == 'bootstrap' && vars.BOOTSTRAP_RESOURCE_GROUP || vars.REGISTRY_RESOURCE_GROUP }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  ARM_USE_OIDC: 'true'
-  ARM_USE_AZUREAD: 'true'
-  TF_IN_AUTOMATION: 'true'
 jobs:
   validate:
     uses: ./.github/workflows/validate-delivery.yml
   plan:
     needs: validate
     if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_FOUNDATION_ENABLED == 'true' }}
-    environment: azure-foundation-plan
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-foundation-plan' || 'azure-foundation-plan' }}
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 20
     permissions:
@@ -48,6 +44,14 @@ jobs:
       actions: read
       id-token: write
     env:
+      ODYN_INFRA_COMPONENT: ${{ inputs.component }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ inputs.component == 'bootstrap' && vars.BOOTSTRAP_RESOURCE_GROUP || vars.REGISTRY_RESOURCE_GROUP }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      ARM_USE_OIDC: 'true'
+      ARM_USE_AZUREAD: 'true'
+      TF_IN_AUTOMATION: 'true'
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -104,7 +108,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/odyn-foundation-$GITHUB_RUN_ID"
   apply:
     needs: plan
-    environment: azure-foundation-apply
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-foundation-apply' || 'azure-foundation-apply' }}
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 45
     permissions:
@@ -112,6 +116,14 @@ jobs:
       actions: read
       id-token: write
     env:
+      ODYN_INFRA_COMPONENT: ${{ inputs.component }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ inputs.component == 'bootstrap' && vars.BOOTSTRAP_RESOURCE_GROUP || vars.REGISTRY_RESOURCE_GROUP }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      ARM_USE_OIDC: 'true'
+      ARM_USE_AZUREAD: 'true'
+      TF_IN_AUTOMATION: 'true'
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}

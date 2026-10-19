@@ -3,6 +3,11 @@ run-name: 'release ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       orchestration_id:
         description: Optional lifecycle controller correlation ID
         type: string
@@ -68,7 +73,7 @@ jobs:
           if-no-files-found: error
   publish:
     needs: build
-    environment: azure-release
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-release' || 'azure-release' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

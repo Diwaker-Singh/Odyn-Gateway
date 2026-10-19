@@ -203,12 +203,17 @@ def recreate(minutes):
     if os.environ.get("GITHUB_REF") != "refs/heads/main":
         raise ValueError("Lifecycle requires protected main")
     preflight()
+    target = os.environ.get("LIFECYCLE_TARGET", "deployment")
+    if target not in ("deployment", "disposable"):
+        raise ValueError("Unknown protected configuration profile")
     deadline = time.monotonic() + minutes * 60
     release = None
     safe_to_retire = True
     execution_started = False
     try:
         for workflow, inputs in stages():
+            if workflow != "execution.yml":
+                inputs = inputs | {"target": target}
             if workflow == "deploy.yml":
                 inputs = inputs | {"release_run_id": str(release)}
             result = dispatch(workflow, inputs, deadline)

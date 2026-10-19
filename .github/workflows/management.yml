@@ -3,6 +3,11 @@ run-name: 'management ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       orchestration_id:
         description: Optional lifecycle controller correlation ID
         type: string
@@ -22,7 +27,7 @@ jobs:
   provision:
     needs: validate
     if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_MANAGEMENT_ENABLED == 'true' }}
-    environment: azure-management
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-management' || 'azure-management' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

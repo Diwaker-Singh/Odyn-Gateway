@@ -98,6 +98,10 @@ class ManagementTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/management.yml").read_text()
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("default: true", workflow)
-        self.assertIn("environment: azure-management", workflow)
+        self.assertIn(
+            "environment: ${{ inputs.target == 'disposable' && "
+            "'azure-test-management' || 'azure-management' }}",
+            workflow,
+        )
         self.assertIn("AZURE_MANAGEMENT_ENABLED", workflow)
         self.assertNotIn("  push:", workflow)

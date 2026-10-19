@@ -91,7 +91,17 @@ def main():
             is True
         )
         assert jobs[protected_job]["needs"] == initial_job
-        assert jobs[protected_job]["environment"] == environment
+        expected_environment = (
+            "${{ inputs.target == 'disposable' && '"
+            + environment.replace("azure-", "azure-test-", 1)
+            + "' || '"
+            + environment
+            + "' }}"
+        )
+        assert jobs[protected_job]["environment"] == expected_environment
+        profile = triggers["workflow_dispatch"]["inputs"]["target"]
+        assert profile["options"] == ["deployment", "disposable"]
+        assert profile["default"] == "deployment"
         assert jobs[protected_job]["permissions"]["id-token"] == "write"
         for job in jobs.values():
             for step in job.get("steps", []):
@@ -104,7 +114,10 @@ def main():
     assert triggers["workflow_dispatch"]["inputs"]["validation_only"]["default"] is True
     assert operations["permissions"] == {"contents": "read"}
     inventory = operations["jobs"]["inventory"]
-    assert inventory["environment"] == "azure-operations"
+    assert inventory["environment"] == (
+        "${{ inputs.target == 'disposable' && 'azure-test-operations' "
+        "|| 'azure-operations' }}"
+    )
     assert "AZURE_OPERATIONS_ENABLED" in inventory["if"]
     assert "!inputs.validation_only" in inventory["if"]
     commands = "\n".join(step.get("run", "") for step in inventory["steps"])

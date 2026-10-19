@@ -3,6 +3,11 @@ run-name: 'operations ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       orchestration_id:
         description: Optional lifecycle controller correlation ID
         type: string
@@ -27,7 +32,7 @@ jobs:
   health:
     needs: validate
     if: ${{ !inputs.validation_only && inputs.action == 'health' && github.ref == 'refs/heads/main' && vars.AZURE_OPERATIONS_ENABLED == 'true' }}
-    environment: azure-operations
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-operations' || 'azure-operations' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -54,7 +59,7 @@ jobs:
   inventory:
     needs: validate
     if: ${{ !inputs.validation_only && inputs.action == 'teardown-preview' && github.ref == 'refs/heads/main' && vars.AZURE_OPERATIONS_ENABLED == 'true' }}
-    environment: azure-operations
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-operations' || 'azure-operations' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

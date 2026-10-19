@@ -51,6 +51,16 @@ manual checks can still use `cloud-smoke.py --chat-url` with a trusted endpoint.
 
 ### Configure independent execution once
 
+Component workflows and the lifecycle controller accept `target=deployment`
+(default) or `target=disposable`. Disposable management, foundation, release,
+deployment and operations use separate protected `azure-test-*` environments.
+Configure their own variables, secrets and narrowly scoped OIDC identities;
+never copy a live identity or provider key into the test profile. Foundation
+and deployment destination variables are resolved at job scope after selecting
+the protected environment. This keeps cold-deployment tests from replacing live
+pipeline settings. The controller forwards the selected profile to every
+delivery component; runner execution remains in its dedicated environment.
+
 Create main-only protected environment `azure-execution`, dedicated federated
 `AZURE_CLIENT_ID`, and `EXECUTION_CONFIG_JSON`:
 

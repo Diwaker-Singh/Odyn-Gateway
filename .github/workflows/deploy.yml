@@ -3,6 +3,11 @@ run-name: 'deploy ${{ inputs.orchestration_id }}'
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Protected configuration profile; disposable never uses live settings
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
       orchestration_id:
         description: Optional lifecycle controller correlation ID
         type: string
@@ -25,21 +30,13 @@ concurrency:
 defaults:
   run:
     shell: bash
-env:
-  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  ARM_USE_OIDC: 'true'
-  ARM_USE_AZUREAD: 'true'
-  TF_IN_AUTOMATION: 'true'
 jobs:
   validate:
     uses: ./.github/workflows/validate-delivery.yml
   plan:
     needs: validate
     if: ${{ !inputs.validation_only && github.ref == 'refs/heads/main' && vars.AZURE_DELIVERY_ENABLED == 'true' }}
-    environment: azure-plan
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-plan' || 'azure-plan' }}
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 20
     permissions:
@@ -47,6 +44,13 @@ jobs:
       actions: read
       id-token: write
     env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      ARM_USE_OIDC: 'true'
+      ARM_USE_AZUREAD: 'true'
+      TF_IN_AUTOMATION: 'true'
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -109,7 +113,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID" infra/envs/dev/azure/.terraform .artifacts/release
   apply:
     needs: plan
-    environment: azure-deploy
+    environment: ${{ inputs.target == 'disposable' && 'azure-test-deploy' || 'azure-deploy' }}
     runs-on: [self-hosted, linux, x64, odyn-azure]
     timeout-minutes: 45
     permissions:
@@ -117,6 +121,13 @@ jobs:
       actions: read
       id-token: write
     env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      ARM_USE_OIDC: 'true'
+      ARM_USE_AZUREAD: 'true'
+      TF_IN_AUTOMATION: 'true'
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
