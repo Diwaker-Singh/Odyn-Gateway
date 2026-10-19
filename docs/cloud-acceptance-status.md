@@ -1,6 +1,6 @@
 # Cloud acceptance status
 
-**Refreshed 19 October 2026 (IST).** The Azure assessment deployment is being
+**Refreshed 19 October 2026 (IST).** The Azure assessment deployment was
 retired at the owner's request to stop charges; provisioning is disabled.
 The deployment observations below are historical, not a current availability
 claim. Cloud acceptance remains **partial**: delivery automation has

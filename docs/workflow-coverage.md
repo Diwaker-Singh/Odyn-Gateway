@@ -83,9 +83,8 @@ Cloud delivery was exercised on 16–17 October 2026 (IST).
 
 The successful cloud runs refer to the exact source linked above, not subsequent
 workflow edits. The temporary runner/network group and isolated test-management
-group were removed after verification. On 19 October the owner requested
-retirement of all billable gateway resources, with encrypted state preservation
-and empty permission anchors retained. The static client is not proof of a
+group were removed after verification. On 19 October all billable gateway resources were retired at the owner’s
+request after encrypted state preservation; empty permission anchors remain. The static client is not proof of a
 running API. Recreate approved private execution before future delivery.
 OIDC trust used exact
 observed immutable owner/repository-ID subjects. The initial test found and fixed
@@ -96,7 +95,7 @@ The 19 October disposable cold controller [39212823565](https://github.com/Diwak
 did not pass its protected execution gate. Automatic approval review was
 unavailable, the approved window expired, and the run was cancelled before
 allocation. Full cold recreation remains unverified. Provisioning flags are
-disabled while the requested cost-retirement work is completed. The final
+disabled following cost retirement. The final
 read-only edge check passed health, HSTS, unauthenticated rejection and CORS;
 it made no valid chat/provider request.
 
@@ -136,3 +135,13 @@ lease ownership and skipped-cloud-job failures have regression guards. All test
 resources, registrations, temporary permissions/identity and test secrets were
 removed, and mutation flags were disabled. The unchanged live revision returned
 HTTP 200 with HSTS afterward. No provider call or live resource deletion occurred.
+
+### State recovery validation
+
+[The encrypted archive workflow](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39247933797)
+passed: all three actual Terraform snapshots were decrypted and validated, and
+only ciphertext was published as a private, time-limited artifact. Azure restore
+was deliberately skipped. Local recovery tests and
+[CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39247832638) passed
+for `e40c124`; actual Azure state hydration and full cold recreation remain
+unverified. See [state recovery](state-recovery.md) for prerequisites and limits.

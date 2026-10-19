@@ -2,8 +2,8 @@
 
 Odyn Gateway is a Python API service that authenticates callers, applies shared request and spend controls, and forwards bounded chat requests to a configured model provider. It uses FastAPI at the HTTP boundary and keeps authorization, admission, provider handling, and accounting in testable gateway components. Azure is the implemented cloud adapter; the AWS directory preserves the Terraform interface as a documented skeleton.
 
-**Demo status:** Azure service retirement was requested on 19 October 2026 to
-stop ongoing charges. Provisioning is disabled. The static client and recorded
+**Demo status:** Azure service resources were retired on 19 October 2026 to
+stop ongoing usage charges. Empty resource groups and scoped identity permissions remain for recovery. Provisioning is disabled. The static client and recorded
 demo remain available; the live API must be rebuilt before use. See
 [state recovery](docs/state-recovery.md) for encrypted backup and pipeline recovery.
 
@@ -267,11 +267,11 @@ creation/probe/retirement test](https://github.com/Diwaker-Singh/Odyn-Gateway/ac
 Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
 second plan and public smoke checks. [Disposable cleanup passed end to end](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129),
 including encrypted recovery and absence verification. It used empty application/
-registry groups and a real state-storage account; live deployment cleanup has
-not run. Temporary runner and disposable test infrastructure are removed after testing.
-The live demo and primary management recovery storage are retained and continue
-to incur charges until explicitly removed. Future cloud execution needs an approved
-window and private runner. See [execution
+registry groups and a real state-storage account. On 19 October, a separate
+cost-retirement operation removed the live application, registry, management and
+state-storage resources after preserving three encrypted Terraform snapshots.
+Empty permission anchors remain; the live API is offline. Future cloud execution
+needs an approved window and private runner. Historical billing can arrive later. See [execution
 status](docs/workflow-coverage.md#execution-status) for exact run links
 and the distinction between helper tests and actual cloud operations.
 
