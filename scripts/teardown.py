@@ -22,7 +22,12 @@ class OwnershipGuardError(ValueError):
     """A safe, machine-readable refusal from the resource ownership guard."""
 
     def __init__(self, code):
-        if code not in {"ownership_tag_mismatch", "managed_group_link_unverified"}:
+        if code not in {
+            "ownership_tag_mismatch",
+            "managed_environment_not_found",
+            "managed_group_name_not_reported",
+            "managed_group_name_mismatch",
+        }:
             raise ValueError("Unknown ownership guard code")
         self.code = code
         super().__init__(code)
@@ -101,7 +106,10 @@ class Teardown:
                 for r in inventory[self.app]
                 if r.get("type", "").lower() == "microsoft.app/managedenvironments"
             ]
+            if not environments:
+                raise OwnershipGuardError("managed_environment_not_found")
             linked = False
+            reported = False
             for env in environments:
                 data = json.loads(
                     self.az(
@@ -113,12 +121,21 @@ class Teardown:
                         "2024-03-01",
                     )
                 )
+                managed_group = (
+                    data.get("properties", {}).get("infrastructureResourceGroup") or ""
+                )
+                reported |= isinstance(managed_group, str) and bool(managed_group)
                 linked |= (
-                    data.get("properties", {}).get("infrastructureResourceGroup")
-                    == self.managed
+                    isinstance(managed_group, str)
+                    and managed_group.casefold() == self.managed.casefold()
                 )
             if not linked:
-                raise OwnershipGuardError("managed_group_link_unverified")
+                code = (
+                    "managed_group_name_mismatch"
+                    if reported
+                    else "managed_group_name_not_reported"
+                )
+                raise OwnershipGuardError(code)
         return inventory
 
     def delete(self, group, timeout=3600):

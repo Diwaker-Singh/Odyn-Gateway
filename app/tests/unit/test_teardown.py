@@ -106,7 +106,7 @@ class TeardownTests(unittest.TestCase):
             return "[]"
 
         with self.assertRaisesRegex(
-            MODULE.OwnershipGuardError, "managed_group_link_unverified"
+            MODULE.OwnershipGuardError, "managed_environment_not_found"
         ):
             self.driver(run).inspect()
 
@@ -115,3 +115,45 @@ class TeardownTests(unittest.TestCase):
         self.assertEqual(error.code, "ownership_tag_mismatch")
         with self.assertRaises(ValueError):
             MODULE.OwnershipGuardError("arbitrary provider diagnostic")
+
+    def test_managed_group_link_comparison_is_case_insensitive(self):
+        driver = self.driver()
+        environment_id = (
+            "/subscriptions/sub/resourceGroups/app/providers/"
+            "Microsoft.App/managedEnvironments/env"
+        )
+
+        def run(args):
+            if args[1:3] == ["account", "show"]:
+                return json.dumps({"id": "sub", "tenantId": "tenant"})
+            if args[1:3] == ["group", "exists"]:
+                return "true"
+            if args[1:3] == ["group", "show"]:
+                return json.dumps({"tags": {"managed_by": "terraform"}})
+            if args[1:3] == ["resource", "list"]:
+                group = args[args.index("--resource-group") + 1]
+                return json.dumps(
+                    [
+                        {
+                            "id": environment_id,
+                            "type": "Microsoft.App/managedEnvironments",
+                        }
+                    ]
+                    if group == driver.app
+                    else []
+                )
+            if args[1:3] == ["resource", "show"]:
+                return json.dumps(
+                    {
+                        "properties": {
+                            "infrastructureResourceGroup": driver.managed.upper()
+                        }
+                    }
+                )
+            return "[]"
+
+        inventory = driver.__class__(
+            "sub", "tenant", "demo10", driver.groups[3], run
+        ).inspect()
+        self.assertIn(driver.managed, driver.groups)
+        self.assertEqual(len(inventory[driver.app]), 1)
