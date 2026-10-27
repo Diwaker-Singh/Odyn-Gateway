@@ -64,40 +64,49 @@ delete permissions and never passes `--execute` to teardown.
 
 ## Execution status
 
-Cloud delivery was exercised on 16–17 October 2026 (IST).
+Cloud delivery and cleanup pipelines were exercised on disposable resources
+through 28 October 2026 (IST). The last test stack has been removed; no current
+Azure Gateway deployment is claimed.
 
 | Operation | Actual result |
 |---|---|
-| Exact-source CI | [Latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain); inspect the run source SHA and all 12 jobs, including image scans. |
-| Private execution bootstrap | [39163453137](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137), passed all four jobs for `19686c4`: validation, isolated runner creation, tool/credential-isolation probe and automatic retirement. |
-| App-authenticated execution | On 19 October, [39210974646](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39210974646) passed creation and the isolated probe, then was cancelled before obsolete retirement code ran. Corrected retirement [39211831808](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39211831808) passed for `485d8ed`: no execution resources remained and the empty group's scoped Contributor assignment was retained. These are separate component results, not one fully passing lifecycle. |
-| Lifecycle controller | [39163289856](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163289856), validation-only dispatch passed; orchestration/skip/source/failure guards have local tests. Full topology recreation has not run. |
-| Image publication | [38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639), passed for `7bca5c1`; published and verified both images. |
-| Foundation bootstrap | [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735), passed; saved plan applied and second plan clean. |
-| Resource inventory | [38883061100](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883061100), passed with Reader OIDC. |
-| Public health | [38881528968](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38881528968), passed without valid chat/provider calls. |
-| Registry provisioning | [38945392647](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945392647), saved no-change plan applied and second plan clean. |
-| Application Actions deployment | [38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780), passed for `7bca5c1`; reviewed saved plan, clean second plan, revision readiness and public health/auth/CORS. |
-| Management bootstrap | [38945385264](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945385264), actual isolated storage creation passed. |
-| Cleanup | [39158982129](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129), passed for `3b7dcdd`: encrypted durable recovery, protected deletion and final absence checks on the isolated fixture. No live cleanup ran. |
+| Exact-source CI | [40576454490](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40576454490), passed for source `64427a1`; inspect all 12 jobs, including image scans. |
+| Management-state setup | [40515986303](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40515986303), passed on the disposable `auto27` environment. |
+| Foundation bootstrap | [40529879535](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40529879535), passed on `auto27`. |
+| Image release | [40567804118](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40567804118), passed on `auto27`. |
+| Application deployment | [40568660007](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40568660007), passed on `auto27`. |
+| Rollback workflow | [40569830141](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40569830141), workflow and saved-plan path passed, but the plan was a no-op because the selected image already matched. This was **not** a demonstrated rollback to a previous image. |
+| Cleanup | [40581291739](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40581291739), passed on the disposable `auto27` stack: encrypted recovery of three Terraform states, ordered deletion, and verification that all four target groups were absent. |
 
-The successful cloud runs refer to the exact source linked above, not subsequent
-workflow edits. The temporary runner/network group and isolated test-management
-group were removed after verification. On 19 October all billable gateway resources were retired at the owner’s
-request after encrypted state preservation; empty permission anchors remain. The static client is not proof of a
-running API. Recreate approved private execution before future delivery.
-OIDC trust used exact
-observed immutable owner/repository-ID subjects. The initial test found and fixed
-missing runner tools, an OIDC subject mismatch, and missing registry metadata
-Reader access; these were not application deployment tests.
+The temporary `auto27` deployment, registry, state resources, automation-state
+storage and self-hosted runner were removed after verification. The disposable
+execution resource group remains empty. The encrypted `encrypted-state-recovery`
+Actions artifact (artifact ID `12770017148`) expires 25 January 2027; it is not
+an active backend. Recreate management and application state backends before
+restoring the archive. A separate short-lived cleanup-recovery artifact expires
+24 hours after upload. The current Pages client is not proof of a running API.
+All seven Azure pipeline enable switches are `false`.
+
+### Earlier component evidence
+
+These runs are historical and do not describe the current Azure inventory:
+
+- [Private execution bootstrap](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137) passed validation, isolated runner creation, tool/credential-isolation probe and automatic retirement.
+- [Application deployment](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780) passed for `7bca5c1`, including a clean second Terraform plan, revision readiness, and public health/authentication/CORS checks.
+- [Image publication](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639) published and verified both images. Foundation and management-state creation also passed in [38883057735](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38883057735) and [38945385264](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38945385264).
+- The corrected app-authenticated runner retirement is recorded in [39211831808](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39211831808). The earlier first run was cancelled before obsolete retirement code completed.
+
+OIDC and role setup was tested with disposable identities and scopes; one-time
+trust and protected environment setup remain operator prerequisites for future
+use. These component runs do not establish a single full cold-start orchestration.
 
 The 19 October disposable cold controller [39212823565](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39212823565)
-did not pass its protected execution gate. Automatic approval review was
-unavailable, the approved window expired, and the run was cancelled before
-allocation. Full cold recreation remains unverified. Provisioning flags are
-disabled following cost retirement. The final
-read-only edge check passed health, HSTS, unauthenticated rejection and CORS;
-it made no valid chat/provider request.
+did not pass its protected execution gate and remains historical. The later
+27–28 October component pipeline runs successfully exercised management,
+foundation, release, deployment, rollback workflow and destructive cleanup on
+`auto27`, but did not prove a single cold-start orchestration of every component
+from an empty subscription. No valid chat/provider request was part of those
+pipeline tests.
 
 Interactive human SSO, secret entry and administrative identity grants remain
 intentional operator boundaries. Credential-free success does not establish
@@ -105,19 +114,19 @@ cloud provisioning, deletion or production qualification.
 
 ### Cleanup test scope and failure learning
 
-The fixture used three genuine Terraform states, empty dedicated application and
-registry groups, and a real state-storage account. Its managed-app group was
-already absent. This exercises missing-group handling and deletion/recovery,
-not the duration or failure modes of tearing down APIM, Key Vault or a running
-Container Apps environment. Full live teardown remains separately authorized.
+The 27–28 October `auto27` cleanup test used three real Terraform states and a
+deployed disposable stack. It encrypted and preserved all three states before
+ordered deletion, then verified the four target groups were absent. This now
+demonstrates cleanup of the disposable APIM, Key Vault, Container Apps and
+supporting resources, not teardown of the separate `demo10` environment. The
+separate demo groups were not targeted and are currently empty by inventory.
 
-The first attempts failed closed during inventory: group-scoped permissions
-could not establish absence of a missing group. A separately approved custom
-role adds only subscription-level resource-group metadata read. Delete rights
-remain restricted to the target groups. With that permission the same cleanup
-path passed, including absence checks after scoped role assignments disappeared.
-Encrypted recovery was also verified privately before deletion; no plain state
-or key was published.
+Earlier attempts failed closed because group-scoped permissions could not
+establish absence of a missing group. The approved cleanup identity now has
+subscription-level resource-group metadata read; delete rights remain scoped to
+the explicitly named target groups. The successful run established final
+absence after scoped role assignments were removed. Only encrypted state
+recovery was published; no plain state or encryption key was included.
 
 ### Independent execution test scope
 
@@ -138,10 +147,8 @@ HTTP 200 with HSTS afterward. No provider call or live resource deletion occurre
 
 ### State recovery validation
 
-[The encrypted archive workflow](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39247933797)
-passed: all three actual Terraform snapshots were decrypted and validated, and
-only ciphertext was published as a private, time-limited artifact. Azure restore
-was deliberately skipped. Local recovery tests and
-[CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39247832638) passed
-for `e40c124`; actual Azure state hydration and full cold recreation remain
-unverified. See [state recovery](state-recovery.md) for prerequisites and limits.
+The 28 October cleanup workflow produced the `encrypted-state-recovery` artifact
+(ID `12770017148`), retaining encrypted snapshots for 90 days. Automatic Azure
+hydration was not performed after the test infrastructure had been removed.
+Restoration requires recreating the management and application backends first;
+see [state recovery](state-recovery.md) for prerequisites and limits.

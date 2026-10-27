@@ -1,21 +1,49 @@
 # Cloud acceptance status
 
-**Refreshed 19 October 2026 (IST).** The Azure assessment deployment was
-retired at the owner's request to stop charges; provisioning is disabled.
-The deployment observations below are historical, not a current availability
-claim. Cloud acceptance remains **partial**: delivery automation has
-passed, while several security, load and operational claims below retain
-explicit limits. Local success is not cloud proof.
+**Refreshed 28 October 2026 (IST).** There is currently no deployed Odyn Gateway
+service in Azure. The `demo10` resource groups remain as empty anchors; the
+separate `auto27` disposable environment used for pipeline validation was
+deleted and verified absent. No Gateway compute or storage resources were found
+in those groups. All seven Azure workflow enable switches are `false`, and the
+temporary self-hosted runner has been removed. The GitHub Pages client remains
+available, but its configured Azure endpoint is offline. Cloud acceptance is
+**partial**: pipeline creation, release, deployment and destructive cleanup
+were exercised, but that does not establish a currently available service or
+close the application-level acceptance gaps below. Local success is not cloud
+proof.
 
-## Pre-retirement deployment and delivery
+## Current pipeline validation (27–28 October)
+
+The following Actions runs exercised the pipeline against disposable `auto27`
+resources. They are operational evidence for those workflow paths, not a live
+demo deployment:
+
+- [Management-state setup, run 40515986303](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40515986303): passed.
+- [Foundation bootstrap, run 40529879535](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40529879535): passed.
+- [Image release, run 40567804118](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40567804118): passed.
+- [Application deployment, run 40568660007](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40568660007): passed against the disposable environment.
+- [Rollback workflow, run 40569830141](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40569830141): workflow and saved-plan path passed, but the selected image already matched the running image, so this was a no-op and **not a demonstrated rollback to an older release**.
+- [Protected cleanup, run 40581291739](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40581291739): passed against the disposable stack. It encrypted and preserved all three Terraform states before deleting and verifying absence of the four target resource groups.
+- [Exact-source CI, run 40576454490](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40576454490): passed on source `64427a1` before this status-document update.
+
+The cleanup archive `encrypted-state-recovery` is retained as a GitHub Actions
+artifact until 25 January 2027. It is a recovery copy, not an active Terraform
+backend. Recreating the management and application state backends is required
+before restoring it. The separate 24-hour cleanup-recovery artifact is
+short-lived. The disposable management storage account and temporary runner
+were removed after recovery was confirmed. All Azure workflow enable switches
+are now disabled.
+
+## Historical deployment and delivery observations
 
 - [Application Actions run 38947234780](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38947234780)
   passed for source `7bca5c1`: the reviewed saved plan was applied, a full second
   plan returned no changes, the new revision became ready, and public
   health/HSTS, authentication rejection and exact-origin CORS checks passed.
-- The last deployed revision was `ca-odyn-gateway-demo10--0000008`. Read-only checks
-  on 19 October confirmed that it is the latest ready revision, APIM reports
-  `Succeeded`, and the `chat-request-schema` deployment reports `Succeeded`.
+- The last observed `demo10` revision was `ca-odyn-gateway-demo10--0000008`.
+  Read-only checks on 19 October confirmed that revision and its APIM/schema
+  resources were ready then. Those checks do not describe the current cloud
+  inventory: the service is now offline.
   Runtime images are pinned to the verified remote manifest references from
   [publication run 38946401639](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/38946401639).
 - The rollout preserved model/limits configuration, Key Vault configuration,
@@ -75,15 +103,18 @@ by its safe smoke checks:
 - **Telemetry and egress:** Useful app/provider telemetry exists historically;
   complete APIM/Front Door trace correlation and network-enforced provider-domain
   egress restrictions remain unproven.
-- **Lifecycle:** Live deployment teardown has not run. [Disposable cleanup passed](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129)
-  after a group-metadata permission fix, using empty application/registry groups
-  and a real state-storage account. This does not demonstrate complete live
-  APIM/Key Vault/Container Apps teardown. Recovered state and protected approvals
-  remain mandatory before destructive execution.
-- **Cost:** There is no fresh attributable billing result for this refresh.
-  The 11 October INR 8.498 snapshot is historical, not today's cost or a cap.
-  The retained demo and management storage continue to incur charges. Review
-  Azure Cost Management and the [cleanup scope](pipeline-lifecycle.md#6-remaining-costs-and-the-management-boundary).
+- **Lifecycle:** The 28 October cleanup run deleted the complete disposable
+  `auto27` application stack, including its API management, Key Vault and
+  Container Apps resources, and verified its target groups absent after
+  encrypted state recovery. It did not delete the separate `demo10` groups.
+  The rollback workflow was a no-op; a real old-image rollback remains
+  unproven. The 90-day archive is available for recovery, but its backends must
+  be recreated first.
+- **Cost:** No fresh attributable billing total was established by these
+  pipeline runs. The 11 October INR 8.498 snapshot is historical, not current
+  spend or a cap. The disposable test resources and runner were removed, but
+  Azure billing data can be delayed; inspect Cost Management for current
+  charges and any unrelated subscription resources.
 
 ## Reading these results
 
@@ -93,7 +124,8 @@ provider credential remains in Key Vault; no secret value belongs in source,
 state outputs, logs, recordings or CI output.
 
 Local revalidation on 19 October passed 338 tests plus formatting, types,
-configuration, repository policy, compilation and secret checks. Those checks,
-image scans and historical application observations do not close the remaining
-cloud limits above. Raw state, plans, logs, credentials and private transcripts
-remain outside the public source tree.
+configuration, repository policy, compilation and secret checks. The later
+pipeline runs validate their actual cloud operations only within the disposable
+environment and exact source revisions listed above. They do not close the
+remaining application acceptance gaps. Raw state, plans, logs, credentials and
+private transcripts remain outside the public source tree.

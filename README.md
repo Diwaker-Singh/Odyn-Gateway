@@ -143,30 +143,31 @@ runbooks](docs/runbooks/).
 
 ## Verification status
 
-The latest Actions deployment passed on 17 October 2026 (IST), on revision
-`ca-odyn-gateway-demo10--0000008`. It applied the reviewed saved plan, required a
-clean second plan, and checked readiness, public routing, HSTS, authentication
-rejection and CORS. Read-only checks on 19 October confirmed the latest revision
-is ready, APIM has succeeded, and the request-schema deployment has succeeded.
+**Updated 28 October 2026. The Azure gateway is currently offline.** The
+`demo10` resource groups remain but are empty. The disposable `auto27`
+deployment, registry, state resources, and test-only automation storage were
+removed after pipeline tests. The GitHub Pages frontend remains available, but
+it cannot reach a running gateway until Azure is recreated. This inventory is
+limited to the Odyn resource groups; it is not a subscription-wide cost audit.
+See [cloud acceptance status](docs/cloud-acceptance-status.md) for the exact
+boundary and remaining proof.
 
-Earlier authenticated hosted-UI/provider inference, human and machine Entra
-sign-in and one controlled alert were demonstrated on 11 October. They were not
-repeated by this pipeline rollout. The two-replica load result used a stub
-backend; it is not live inference throughput or complete global-budget proof.
-These checks demonstrate working paths, not full cloud acceptance. See
-[cloud acceptance status](docs/cloud-acceptance-status.md) and
-[workflow execution status](docs/workflow-coverage.md#execution-status).
+On 27–28 October, Actions completed management-state provisioning, foundation
+bootstrap, image release, application deployment, rollback-workflow and
+destructive-cleanup runs against disposable `auto27` resources. The rollback
+plan was a no-op because the selected image already matched; it did not prove
+rollback to an older release. Cleanup encrypted and preserved all three
+Terraform states before deleting the deployed disposable stack and verifying
+the four target groups absent. The temporary runner was retired and all seven
+Azure workflow switches were turned off. These runs validate pipeline paths,
+not current service availability. See [workflow execution status](docs/workflow-coverage.md#execution-status).
 
-Local revalidation on 19 October 2026 passed 338 gateway/tooling tests, Ruff,
-mypy, repository policy and configuration checks. The preceding hosted UI
-validation passed 5 configuration tests and the production build. The module
-and Azure environment passed Terraform validation after the edge-policy change;
-all 4 roots passed the earlier release validation. The 12-job GitHub Actions
-suite covers the tested source revision shown in each run; see
-[latest main CI](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/workflows/ci.yml?query=branch%3Amain).
-The hosted UI Pages workflow is a separate build/deploy check. Cloud and local
-evidence artifacts are kept outside the public source tree; the status document
-labels what was observed and what is still unproven.
+The latest CI run is [40576454490](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40576454490)
+on source `64427a1`; it passed. Earlier local release validation and the 11
+October authenticated provider/alert demonstrations are historical evidence,
+not current cloud availability. The two-replica load result used a stub backend
+and does not establish live inference throughput or complete global-budget
+enforcement.
 
 ## Local development
 
@@ -202,8 +203,9 @@ plans, real variable files, credentials, or local reports.
 
 The configurable static browser UI is hosted at
 [https://diwaker-singh.github.io/Odyn-Gateway/](https://diwaker-singh.github.io/Odyn-Gateway/)
-and uses the configured human Entra client to send bounded requests to the
-gateway. Watch the [redacted hosted-chat demo on Google Drive](https://drive.google.com/file/d/1j6XgajrV9EkQ4yiZiX0eGQ0NpG35c9hD/view?usp=sharing).
+and uses the configured human Entra client to send bounded requests when a
+gateway deployment is available. The Azure endpoint is currently offline.
+Watch the [redacted hosted-chat demo on Google Drive](https://drive.google.com/file/d/1j6XgajrV9EkQ4yiZiX0eGQ0NpG35c9hD/view?usp=sharing).
 The recording blurs Microsoft account details, connection-setting values and
 browser address text. A local Python proxy UI is also available for development;
 start it with:
@@ -217,9 +219,10 @@ and follow the [local demo guide](docs/local-chat-ui.md). It binds to
 `127.0.0.1:8400`; the access token remains in the local Python process. The
 hosted SPA configuration, local preview and security boundaries are described
 in the [hosted chat UI guide](docs/hosted-chat-ui.md). The Entra redirect and
-exact-origin APIM preflight are configured, and the authenticated browser-to-chat
-path has been smoke-tested against the live provider. Hosting the static files
-does not expose the OpenRouter key.
+exact-origin APIM preflight were configured and the authenticated browser-to-chat
+path was smoke-tested against the live provider on 11 October. Hosting the static
+files does not expose the OpenRouter key; current chat availability depends on
+recreating the Azure backend.
 
 The [workflow coverage guide](docs/workflow-coverage.md) maps operator scripts
 to CI, credential-free validation and manual cloud workflows, including the
@@ -260,26 +263,20 @@ The static UI uses its separate Pages workflow.
 on completion. One-time administrator federation, scoped bootstrap authority,
 GitHub App setup, environment configuration and provider-secret entry remain
 required. See the [recreation contract](docs/pipeline-lifecycle.md#recreation-contract).
-Full cold recreation of the complete topology is not yet established by the
-component workflow tests. [Independent execution passed its full disposable
-creation/probe/retirement test](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39163453137).
+Full cold recreation of the complete topology as a single lifecycle run is not
+established. The 27–28 October component runs separately tested the essential
+management, foundation, release, deployment and cleanup paths. The successful
+rollback workflow was a no-op, not a rollback to an older image. The latest
+cleanup run used the real cleanup flow on the disposable deployed stack and
+verified deletion after encrypted state recovery. See [execution status](docs/workflow-coverage.md#execution-status)
+for exact run links and scope.
 
-Actual Actions image publication, management storage creation, foundation state-storage provisioning and registry reconciliation passed on 16 October. Application deployment also passed through Actions, including its clean
-second plan and public smoke checks. [Disposable cleanup passed end to end](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129),
-including encrypted recovery and absence verification. It used empty application/
-registry groups and a real state-storage account. On 19 October, a separate
-cost-retirement operation removed the live application, registry, management and
-state-storage resources after preserving three encrypted Terraform snapshots.
-Empty permission anchors remain; the live API is offline. Future cloud execution
-needs an approved window and private runner. Historical billing can arrive later. See [execution
-status](docs/workflow-coverage.md#execution-status) for exact run links
-and the distinction between helper tests and actual cloud operations.
-
-Cleanup retains durable management storage and external runners, which can still
-cost money. To remove management storage too, export and verify state separately
-first. Recreate it with the management workflow and restore state before managing
-any surviving resources; an empty account is not state recovery. See the
-[lifecycle recovery steps](docs/pipeline-lifecycle.md#5-recreate-after-cleanup).
+Azure test resources have been removed after the disposable cleanup test. The
+encrypted Terraform archive from that run is retained as a GitHub Actions
+artifact until 25 January 2027; restore requires recreating the management and
+application state backends first. It is a recovery archive, not an active
+backend. Empty resource groups are not state recovery.
+See the [lifecycle recovery steps](docs/pipeline-lifecycle.md#5-recreate-after-cleanup).
 Use a separate runtime managed identity and keep all real configuration private.
 
 The provider key is never supplied as a literal Terraform value or plaintext

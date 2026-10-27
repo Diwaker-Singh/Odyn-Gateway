@@ -8,13 +8,17 @@ required environments, OIDC roles, network access and repository enable flags
 must also exist. Never use a public pull-request job on a private Azure runner.
 A public demo with Developer APIM is not a production deployment.
 
-The current runtime topology is unchanged. See [workflow execution status](workflow-coverage.md#execution-status)
-for actual tested operations versus local-only coverage. Management bootstrap, foundation, publication and application deployment have
-passed actual Azure execution. [Disposable cleanup also passed](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/39158982129)
-after the metadata-read permission fix. Its fixture had empty application/registry
-groups and a real state-storage account; it does not establish full live teardown.
-Live cleanup has not run. Budget alerts and workflow timeouts are
-not hard Azure spending caps.
+There is no current Azure Gateway deployment. The 27–28 October component
+workflow runs exercised management-state setup, foundation bootstrap, image
+release, application deployment, the rollback path and full cleanup against the
+disposable `auto27` environment. [Cleanup run 40581291739](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40581291739)
+recovered three encrypted Terraform state snapshots, removed the disposable
+stack and verified all four target groups absent. This is real disposable
+cleanup evidence; it does not mean the separate `demo10` groups were targeted.
+The rollback run was a no-op because the selected image already matched, so it
+did not demonstrate restoring a prior image. See [workflow execution status](workflow-coverage.md#execution-status)
+for run-by-run scope. Budget alerts and workflow timeouts are not hard Azure
+spending caps.
 
 Cloud-mutating workflows share one concurrency group. Dispatch them in order,
 waiting for completion: GitHub retains only one pending run per concurrency
@@ -351,10 +355,13 @@ vault is gone. If any resources survived, recover state/import before apply.
 
 Application cleanup does not guarantee zero further charges. Retained management
 storage, snapshot versions/retention, external runners, unrelated resources and
-billing latency must be reviewed. Stop/delete unused runner VMs, disks and IPs.
-The temporary runner/network group and isolated test-management storage were
-removed after testing. The primary management backend and live demo remain;
-there is no persistent runner service.
+billing latency must be reviewed. The disposable `auto27` application resources,
+registry, state storage, management-test storage and temporary runner were
+removed after testing. Its execution resource group remains empty. The recovery
+archive is retained in GitHub Actions through 25 January 2027; it is not an
+active backend. Azure inventory found the separate `demo10` resource groups
+empty as well. Billing data may lag, so check Cost Management for current
+charges; unrelated subscription resources were not touched.
 
 Management storage is deliberately outside the cleanup job's deletion scope.
 To remove it too, first export and verify the latest foundation states and all
@@ -366,7 +373,7 @@ verified state restoration before managing surviving resources. Do not confuse
 recreating an empty container with recovering an environment.
 
 The management workflow integration test used disposable storage, not an
-adoption of the primary management backend. Before its next real use, set
+adoption of a persistent production management backend. Before its next use, set
 `MANAGEMENT_CONFIG_JSON` for the intended group/account, existing approved
 runner subnet and state principals, and reestablish administrative permissions.
 Do not reuse discarded fixture configuration or assume test-only role assignments
