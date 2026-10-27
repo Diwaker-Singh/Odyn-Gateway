@@ -162,8 +162,9 @@ the four target groups absent. The temporary runner was retired and all seven
 Azure workflow switches were turned off. These runs validate pipeline paths,
 not current service availability. See [workflow execution status](docs/workflow-coverage.md#execution-status).
 
-The latest CI run is [40576454490](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40576454490)
-on source `64427a1`; it passed. Earlier local release validation and the 11
+CI passed on the application source `64427a1` in
+[run 40576454490](https://github.com/Diwaker-Singh/Odyn-Gateway/actions/runs/40576454490),
+before this documentation-only status refresh. Earlier local release validation and the 11
 October authenticated provider/alert demonstrations are historical evidence,
 not current cloud availability. The two-replica load result used a stub backend
 and does not establish live inference throughput or complete global-budget
