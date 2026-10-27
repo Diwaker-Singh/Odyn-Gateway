@@ -122,10 +122,12 @@ resource "azurerm_private_dns_zone" "data" {
   tags                = local.common
 }
 resource "azurerm_private_dns_zone_virtual_network_link" "data" {
-  for_each              = azurerm_private_dns_zone.data
+  # Keep instance keys independent of apply-time resource attributes so a
+  # cold plan can determine both links before the DNS zones are created.
+  for_each              = toset(["table", "vault"])
   name                  = "data"
   resource_group_name   = azurerm_resource_group.main.name
-  private_dns_zone_name = each.value.name
+  private_dns_zone_name = azurerm_private_dns_zone.data[each.key].name
   virtual_network_id    = azurerm_virtual_network.main.id
   tags                  = local.common
 }
