@@ -126,6 +126,19 @@ def main():
         "actions": "read",
         "id-token": "write",
     }
+    deployment = yaml.safe_load((ROOT / ".github/workflows/deploy.yml").read_text())
+    scans = [
+        step
+        for step in deployment["jobs"]["plan"]["steps"]
+        if step.get("name", "").startswith("Rescan prior")
+    ]
+    assert len(scans) == 2
+    for step in scans:
+        assert step["if"] == "${{ inputs.rollback_deployment_run_id != '' }}"
+        assert step["env"]["TRIVY_IMAGE_SRC"] == "remote"
+        assert step["with"]["severity"] == "HIGH,CRITICAL"
+        assert step["with"]["exit-code"] == "1"
+        assert step["with"]["image-ref"].startswith("${{ steps.prepared.outputs.")
     recovery = yaml.safe_load(
         (ROOT / ".github/workflows/state-recovery.yml").read_text()
     )

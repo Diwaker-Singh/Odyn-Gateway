@@ -89,7 +89,7 @@ variable "max_body_bytes" {
 variable "max_tokens_ceiling" {
   description = "Max output tokens; over-ceiling requests are rejected, not clamped."
   type        = number
-  default     = 1024
+  default     = 2048
 }
 
 variable "per_principal_rps" {

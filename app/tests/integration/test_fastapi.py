@@ -62,6 +62,20 @@ class FastApiAdapterTests(unittest.TestCase):
         r = c.post("/v1/chat", content=bad, headers=auth_headers(tok))
         self.assertEqual(r.status_code, 422)
 
+    def test_extended_output_limit_and_configured_override(self):
+        # Exercise the real ASGI boundary and accounting with the stub provider.
+        for ceiling in (2048, 512):
+            client, gateway = self.client(max_tokens_ceiling=ceiling)
+            headers = auth_headers(user_token(gateway))
+            accepted = client.post(
+                "/v1/chat", content=chat_body(max_tokens=ceiling), headers=headers
+            )
+            self.assertEqual(accepted.status_code, 200)
+            rejected = client.post(
+                "/v1/chat", content=chat_body(max_tokens=ceiling + 1), headers=headers
+            )
+            self.assertEqual(rejected.status_code, 422)
+
     def test_health_ready_skip_upstream(self):
         c, gw = self.client()
         gw.upstream.mode = "http_500"  # fault must not affect health

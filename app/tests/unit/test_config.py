@@ -13,7 +13,7 @@ class ConfigDefaultsTests(unittest.TestCase):
         self.assertEqual((c.per_principal_rps, c.per_principal_burst), (5.0, 10))
         self.assertEqual((c.global_rps, c.global_burst), (20.0, 40))
         self.assertEqual(c.max_body_bytes, 32 * 1024)
-        self.assertEqual(c.max_tokens_ceiling, 1024)
+        self.assertEqual(c.max_tokens_ceiling, 2048)
         self.assertEqual(c.daily_token_limit, 100_000)
         self.assertEqual(c.upstream_mode, "stub")
         self.assertFalse(c.network_enforced)

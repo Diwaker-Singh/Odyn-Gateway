@@ -26,7 +26,7 @@ from scripts.local_chat_ui import (
 
 class LocalChatUiTests(unittest.TestCase):
     def test_local_demo_response_limit_is_deliberately_bounded(self):
-        self.assertEqual(MAX_TOKENS, 512)
+        self.assertEqual(MAX_TOKENS, 1024)
 
     def test_gateway_origin_is_https_and_has_no_extra_url_components(self):
         self.assertEqual(

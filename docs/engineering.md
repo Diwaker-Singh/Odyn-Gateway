@@ -73,7 +73,7 @@ response from usable completion text. Reasoning could consume the small output
 allowance and leave no visible answer. The adapter disables provider reasoning
 for this chat use case and rejects empty or reasoning-only completions; the
 regression tests preserve that behavior. The demo client now requests up to
-512 output tokens. That is a configurable demo choice, not a language-model
+1,024 output tokens. That is a configurable demo choice, not a language-model
 capability claim or a guarantee against other upstream failures.
 
 Azure Table transactions also exposed a protocol detail: the batch envelope

@@ -220,7 +220,10 @@ After successful deployment verification, that artifact records the immutable
 image references, original release source, deployment source/run, target and
 configuration fingerprint. Rollback verifies the originating run through the
 GitHub API and rejects other repositories, profiles, configuration fingerprints,
-failed runs and unpinned images. It preserves current configuration and rejects
+failed runs and unpinned images. Historical images are rescanned against the current
+vulnerability database before planning; a newly vulnerable image blocks rollback.
+The deployment identity needs registry-scoped `AcrPull` for those remote scans;
+no static registry password is stored. It preserves current configuration and rejects
 Terraform changes beyond existing Container App image updates. It does not
 restore data, secrets, infrastructure or a previous Terraform state, and does
 not automatically replay failed provider requests. No automatic failure rollback

@@ -2,7 +2,7 @@
 
 - per-principal: 5 req/s sustained, burst 10 (token bucket capacity 10)
 - global: 20 req/s sustained, burst 40
-- max body 32 KiB; max output tokens 1024; daily per-principal 100k tokens
+- max body 32 KiB; max output tokens 2048; daily per-principal 100k tokens
 - one live model alias + multi-entry allowlist structure
 - spend enforced alongside tokens via versioned price table (per 1k tokens)
 """
@@ -31,7 +31,7 @@ class GatewayConfig:
     global_rps: float = 20.0
     global_burst: int = 40
     max_body_bytes: int = 32 * 1024
-    max_tokens_ceiling: int = 1024
+    max_tokens_ceiling: int = 2048
     daily_token_limit: int = 100_000
     daily_spend_usd_limit: float = 5.0
     price_table_version: str = "2026-10-09-demo"

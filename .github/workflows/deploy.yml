@@ -137,7 +137,8 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Create and encrypt the saved plan
+      - name: Prepare verified image inputs
+        id: prepared
         run: |
           umask 077
           export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
@@ -146,6 +147,49 @@ jobs:
           else
             python scripts/delivery.py prepare --directory "$ODYN_DELIVERY_DIR" --release .artifacts/release/release.json
           fi
+          python - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          release = json.loads((Path(os.environ['ODYN_DELIVERY_DIR']) / 'release.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for name in ('gateway', 'collector'):
+                  output.write(f"{name}={release['images'][name]['reference']}\n")
+          PYCODE
+      - name: Authenticate remote rollback image scans
+        if: ${{ inputs.rollback_deployment_run_id != '' }}
+        run: |
+          python - <<'PYCODE'
+          import json, os, subprocess
+          registry = os.environ['ACR_LOGIN_SERVER'].removesuffix('.azurecr.io')
+          token = json.loads(subprocess.check_output(['az', 'acr', 'login', '--name', registry, '--expose-token', '-o', 'json']))['accessToken']
+          assert isinstance(token, str) and token and '\n' not in token and '\r' not in token
+          print(f'::add-mask::{token}')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('TRIVY_USERNAME=00000000-0000-0000-0000-000000000000\n')
+              env.write(f'TRIVY_PASSWORD={token}\n')
+          PYCODE
+      - name: Rescan prior gateway image before rollback
+        if: ${{ inputs.rollback_deployment_run_id != '' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+        with:
+          image-ref: ${{ steps.prepared.outputs.gateway }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Rescan prior collector image before rollback
+        if: ${{ inputs.rollback_deployment_run_id != '' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+        with:
+          image-ref: ${{ steps.prepared.outputs.collector }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Create and encrypt the saved plan
+        run: |
+          umask 077
+          export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
           terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
           python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"
           terraform -chdir=infra/envs/dev/azure plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1
