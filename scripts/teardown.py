@@ -33,14 +33,40 @@ class OwnershipGuardError(ValueError):
         super().__init__(code)
 
 
+class AzureCommandError(RuntimeError):
+    """A safe Azure failure code; never retains or prints provider output."""
+
+    def __init__(self, code):
+        allowed = {
+            "AuthorizationFailed",
+            "ResourceNotFound",
+            "ResourceGroupNotFound",
+            "NoRegisteredProviderFound",
+            "MissingSubscriptionRegistration",
+            "InvalidApiVersionParameter",
+            "Other",
+        }
+        if code not in allowed:
+            code = "Other"
+        self.code = code
+        super().__init__(code)
+
+
 def command(args):
     result = subprocess.run(
         args, capture_output=True, text=True, check=False, timeout=120, cwd=ROOT
     )
     if result.returncode:
-        raise RuntimeError(
-            f"Command failed: {args[0]} {args[1]}; diagnostics suppressed"
+        codes = (
+            "AuthorizationFailed",
+            "ResourceNotFound",
+            "ResourceGroupNotFound",
+            "NoRegisteredProviderFound",
+            "MissingSubscriptionRegistration",
+            "InvalidApiVersionParameter",
         )
+        code = next((item for item in codes if item in result.stderr), "Other")
+        raise AzureCommandError(code)
     return result.stdout
 
 

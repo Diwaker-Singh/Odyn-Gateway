@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -117,6 +118,18 @@ class TeardownTests(unittest.TestCase):
         self.assertEqual(error.code, "ownership_tag_mismatch")
         with self.assertRaises(ValueError):
             MODULE.OwnershipGuardError("arbitrary provider diagnostic")
+
+    def test_azure_command_errors_expose_only_allowlisted_codes(self):
+        result = SimpleNamespace(
+            returncode=1, stderr="AuthorizationFailed: private details"
+        )
+        with (
+            patch.object(MODULE.subprocess, "run", return_value=result),
+            self.assertRaises(MODULE.AzureCommandError) as caught,
+        ):
+            MODULE.command(["az", "resource", "show"])
+        self.assertEqual(str(caught.exception), "AuthorizationFailed")
+        self.assertNotIn("private details", str(caught.exception))
 
     def test_managed_group_link_comparison_is_case_insensitive(self):
         driver = self.driver()
