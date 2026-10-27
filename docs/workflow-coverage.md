@@ -2,8 +2,9 @@
 
 CI and manual workflows exercise the repository tooling at the appropriate
 boundary. Interactive sign-in and secret entry remain operator tasks; running
-those unattended would change their security model. No workflow deletes the
-live deployment automatically.
+those unattended would change their security model. Destructive cleanup requires
+protected approvals and an explicit target scope; the recent cleanup test
+targeted disposable `auto27` resources only.
 
 ## Script coverage
 
@@ -127,6 +128,13 @@ subscription-level resource-group metadata read; delete rights remain scoped to
 the explicitly named target groups. The successful run established final
 absence after scoped role assignments were removed. Only encrypted state
 recovery was published; no plain state or encryption key was included.
+
+The first state-snapshot attempt also failed because the disposable management
+storage endpoint was private/default-deny. The successful run used a temporary
+runner-subnet network allowance and a container-scoped Blob Data Reader grant;
+the network allowance was removed afterward and the account was deleted during
+test cleanup. This validated recovery on the fixture without leaving a new
+public storage path enabled.
 
 ### Independent execution test scope
 
