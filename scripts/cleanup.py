@@ -307,6 +307,8 @@ def main():
         InvalidTag,
     ) as error:
         print(f"Cleanup failure category: {type(error).__name__}")
+        if isinstance(error, teardown.OwnershipGuardError):
+            print(f"Cleanup ownership guard refused: {error.code}")
         # Provider messages/state can contain secrets; inspect privately, never log.
         print(
             "Cleanup stopped; deployment/state may be partial. Inspect privately before retrying."

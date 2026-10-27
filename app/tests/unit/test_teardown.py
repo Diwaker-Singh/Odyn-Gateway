@@ -105,5 +105,13 @@ class TeardownTests(unittest.TestCase):
                 return json.dumps({"tags": {"managed_by": "terraform"}})
             return "[]"
 
-        with self.assertRaisesRegex(ValueError, "ownership"):
+        with self.assertRaisesRegex(
+            MODULE.OwnershipGuardError, "managed_group_link_unverified"
+        ):
             self.driver(run).inspect()
+
+    def test_ownership_guard_codes_are_safe_and_machine_readable(self):
+        error = MODULE.OwnershipGuardError("ownership_tag_mismatch")
+        self.assertEqual(error.code, "ownership_tag_mismatch")
+        with self.assertRaises(ValueError):
+            MODULE.OwnershipGuardError("arbitrary provider diagnostic")

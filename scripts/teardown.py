@@ -18,6 +18,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+class OwnershipGuardError(ValueError):
+    """A safe, machine-readable refusal from the resource ownership guard."""
+
+    def __init__(self, code):
+        if code not in {"ownership_tag_mismatch", "managed_group_link_unverified"}:
+            raise ValueError("Unknown ownership guard code")
+        self.code = code
+        super().__init__(code)
+
+
 def command(args):
     result = subprocess.run(
         args, capture_output=True, text=True, check=False, timeout=120, cwd=ROOT
@@ -80,7 +90,7 @@ class Teardown:
                 group != self.managed
                 and metadata.get("tags", {}).get("managed_by") != "terraform"
             ):
-                raise ValueError(f"Unrecognized ownership tags: {group}")
+                raise OwnershipGuardError("ownership_tag_mismatch")
             inventory[group] = json.loads(
                 self.az("resource", "list", "--resource-group", group)
             )
@@ -108,7 +118,7 @@ class Teardown:
                     == self.managed
                 )
             if not linked:
-                raise ValueError("Managed group ownership cannot be established; stop")
+                raise OwnershipGuardError("managed_group_link_unverified")
         return inventory
 
     def delete(self, group, timeout=3600):
