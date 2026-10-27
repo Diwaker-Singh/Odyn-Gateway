@@ -103,10 +103,12 @@ class TeardownTests(unittest.TestCase):
                 return "true"
             if args[1:3] == ["group", "show"]:
                 return json.dumps({"tags": {"managed_by": "terraform"}})
+            if args[1:3] == ["resource", "show"]:
+                return "{}"
             return "[]"
 
         with self.assertRaisesRegex(
-            MODULE.OwnershipGuardError, "managed_environment_not_found"
+            MODULE.OwnershipGuardError, "managed_environment_identity_unverified"
         ):
             self.driver(run).inspect()
 
@@ -119,8 +121,8 @@ class TeardownTests(unittest.TestCase):
     def test_managed_group_link_comparison_is_case_insensitive(self):
         driver = self.driver()
         environment_id = (
-            "/subscriptions/sub/resourceGroups/app/providers/"
-            "Microsoft.App/managedEnvironments/env"
+            f"/subscriptions/sub/resourceGroups/{driver.app}/providers/"
+            "Microsoft.App/managedEnvironments/cae-odyn-gateway-demo10"
         )
 
         def run(args):
@@ -145,9 +147,10 @@ class TeardownTests(unittest.TestCase):
             if args[1:3] == ["resource", "show"]:
                 return json.dumps(
                     {
+                        "id": environment_id,
                         "properties": {
                             "infrastructureResourceGroup": driver.managed.upper()
-                        }
+                        },
                     }
                 )
             return "[]"

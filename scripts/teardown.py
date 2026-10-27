@@ -24,7 +24,7 @@ class OwnershipGuardError(ValueError):
     def __init__(self, code):
         if code not in {
             "ownership_tag_mismatch",
-            "managed_environment_not_found",
+            "managed_environment_identity_unverified",
             "managed_group_name_not_reported",
             "managed_group_name_mismatch",
         }:
@@ -51,6 +51,7 @@ class Teardown:
         if not re.fullmatch(r"rg-odyn-gateway-[a-z0-9-]+", state_group):
             raise ValueError("State group must be a dedicated Odyn group")
         self.subscription, self.tenant, self.run = subscription, tenant, run
+        self.environment = environment
         self.app = f"rg-odyn-gateway-{environment}"
         self.managed = f"{self.app}-managed"
         self.groups = [
@@ -101,41 +102,32 @@ class Teardown:
             )
         # Never delete an arbitrary managed group merely because its name matches.
         if self.exists(self.managed):
-            environments = [
-                r
-                for r in inventory[self.app]
-                if r.get("type", "").lower() == "microsoft.app/managedenvironments"
-            ]
-            if not environments:
-                raise OwnershipGuardError("managed_environment_not_found")
-            linked = False
-            reported = False
-            for env in environments:
-                data = json.loads(
-                    self.az(
-                        "resource",
-                        "show",
-                        "--ids",
-                        env["id"],
-                        "--api-version",
-                        "2024-03-01",
-                    )
+            environment_id = (
+                f"/subscriptions/{self.subscription}/resourceGroups/{self.app}"
+                f"/providers/Microsoft.App/managedEnvironments/cae-odyn-gateway-{self.environment}"
+            )
+            data = json.loads(
+                self.az(
+                    "resource",
+                    "show",
+                    "--ids",
+                    environment_id,
+                    "--api-version",
+                    "2024-03-01",
                 )
-                managed_group = (
-                    data.get("properties", {}).get("infrastructureResourceGroup") or ""
-                )
-                reported |= isinstance(managed_group, str) and bool(managed_group)
-                linked |= (
-                    isinstance(managed_group, str)
-                    and managed_group.casefold() == self.managed.casefold()
-                )
-            if not linked:
-                code = (
-                    "managed_group_name_mismatch"
-                    if reported
-                    else "managed_group_name_not_reported"
-                )
-                raise OwnershipGuardError(code)
+            )
+            if (
+                not isinstance(data, dict)
+                or data.get("id", "").casefold() != environment_id.casefold()
+            ):
+                raise OwnershipGuardError("managed_environment_identity_unverified")
+            managed_group = (
+                data.get("properties", {}).get("infrastructureResourceGroup") or ""
+            )
+            if not isinstance(managed_group, str) or not managed_group:
+                raise OwnershipGuardError("managed_group_name_not_reported")
+            if managed_group.casefold() != self.managed.casefold():
+                raise OwnershipGuardError("managed_group_name_mismatch")
         return inventory
 
     def delete(self, group, timeout=3600):
