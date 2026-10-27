@@ -321,3 +321,179 @@ class FoundationTests(unittest.TestCase):
             self.assertRaises(ValueError),
         ):
             MODULE.prepare_infrastructure(Path(temp))
+
+
+class RollbackTests(unittest.TestCase):
+    def setUp(self):
+        self.environment = patch.dict(
+            os.environ,
+            {
+                "GITHUB_REPOSITORY": "example/gateway",
+                "ACR_LOGIN_SERVER": "demo.azurecr.io",
+                "DELIVERY_TARGET": "disposable",
+            },
+        )
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        self.ctx = {
+            "inputs_sha256": "settings",
+            "subscription": "sub",
+            "tenant": "tenant",
+            "resource_group": "dedicated",
+            "registry": "demo.azurecr.io",
+        }
+        self.context = patch.object(MODULE, "context", return_value=self.ctx)
+        self.context.start()
+        self.addCleanup(self.context.stop)
+
+    def record(self):
+        return {
+            "schema": 1,
+            "deployment_run_id": "123",
+            "deployment_source": "a" * 40,
+            "target": "disposable",
+            "context": self.ctx.copy(),
+            "release": DeliveryTests().release(),
+        }
+
+    def metadata(self):
+        return {
+            "id": 123,
+            "path": ".github/workflows/deploy.yml",
+            "event": "workflow_dispatch",
+            "head_branch": "main",
+            "head_sha": "a" * 40,
+            "status": "completed",
+            "conclusion": "success",
+            "repository": {"full_name": "example/gateway"},
+        }
+
+    def test_verified_previous_deployment_is_accepted(self):
+        MODULE.validate_deployment(self.record(), self.metadata(), "123")
+
+    def test_wrong_run_source_repository_and_failed_run_are_rejected(self):
+        for field, value in [
+            ("id", 456),
+            ("path", ".github/workflows/release.yml"),
+            ("event", "pull_request"),
+            ("head_branch", "feature"),
+            ("head_sha", "b" * 40),
+            ("status", "in_progress"),
+            ("conclusion", "failure"),
+            ("repository", {"full_name": "other/repo"}),
+        ]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                MODULE.validate_deployment(
+                    self.record(), self.metadata() | {field: value}, "123"
+                )
+
+    def test_other_profile_and_configuration_are_rejected(self):
+        for record in [
+            self.record() | {"target": "deployment"},
+            self.record() | {"context": self.ctx | {"inputs_sha256": "different"}},
+            self.record() | {"context": self.ctx | {"subscription": "other"}},
+        ]:
+            with self.assertRaises(ValueError):
+                MODULE.validate_deployment(record, self.metadata(), "123")
+
+    def plan(self):
+        before = {
+            "name": "app",
+            "template": [
+                {
+                    "container": [
+                        {"name": "gateway", "image": "old"},
+                        {"name": "collector", "image": "collector"},
+                    ]
+                }
+            ],
+            "latest_revision_name": "old-revision",
+        }
+        after = json.loads(json.dumps(before))
+        after["template"][0]["container"][0]["image"] = "new"
+        after["latest_revision_name"] = None
+        return {
+            "resource_changes": [
+                {
+                    "type": "azurerm_container_app",
+                    "change": {
+                        "actions": ["update"],
+                        "before": before,
+                        "after": after,
+                        "after_unknown": {"latest_revision_name": True},
+                    },
+                }
+            ]
+        }
+
+    def test_image_only_update_and_known_computed_field_are_accepted(self):
+        self.assertEqual(MODULE.rollback_plan(self.plan()), 1)
+
+    def test_rollback_rejects_unrelated_configuration_changes(self):
+        plan = self.plan()
+        plan["resource_changes"][0]["change"]["after"]["name"] = "different"
+        with self.assertRaises(ValueError):
+            MODULE.rollback_plan(plan)
+
+    def test_rollback_rejects_unknown_configuration(self):
+        plan = self.plan()
+        plan["resource_changes"][0]["change"]["after_unknown"]["template"] = True
+        with self.assertRaises(ValueError):
+            MODULE.rollback_plan(plan)
+
+    def test_create_delete_replace_and_unrelated_resource_updates_are_rejected(self):
+        for actions in [["create"], ["delete"], ["create", "delete"]]:
+            plan = self.plan()
+            plan["resource_changes"][0]["change"]["actions"] = actions
+            with self.assertRaises(ValueError):
+                MODULE.rollback_plan(plan)
+        plan = self.plan()
+        plan["resource_changes"][0]["type"] = "azurerm_key_vault"
+        with self.assertRaises(ValueError):
+            MODULE.rollback_plan(plan)
+
+    def test_noop_rollback_is_safe(self):
+        self.assertEqual(MODULE.rollback_plan({"resource_changes": []}), 0)
+
+    def test_invalid_run_identifier_is_rejected_before_command(self):
+        with patch.object(MODULE, "run") as run:
+            for value in ["../other", "-1", "0", "123;echo bad"]:
+                with self.assertRaises(ValueError):
+                    MODULE.workflow_run(value)
+            run.assert_not_called()
+
+    def test_prepare_pins_historical_images_and_preserves_current_configuration(self):
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(
+                os.environ,
+                {
+                    "ROLLBACK_DEPLOYMENT_RUN_ID": "123",
+                    "GITHUB_SHA": "c" * 40,
+                    "AZURE_SUBSCRIPTION_ID": "sub",
+                    "AZURE_TENANT_ID": "tenant",
+                    "APPLICATION_TFVARS_JSON": json.dumps(
+                        {
+                            "subscription_id": "sub",
+                            "tenant_id": "tenant",
+                            "max_output_tokens": 512,
+                        }
+                    ),
+                    "TF_BACKEND_JSON": json.dumps({"use_azuread_auth": True}),
+                },
+            ),
+            patch.object(MODULE, "workflow_run", return_value=self.metadata()),
+        ):
+            directory = Path(temp)
+            record = directory / "deployment.json"
+            record.write_text(json.dumps(self.record()))
+            MODULE.prepare(directory / "plan", record)
+            variables = json.loads(
+                (directory / "plan/application.tfvars.json").read_text()
+            )
+            self.assertEqual(variables["max_output_tokens"], 512)
+            self.assertIn("@sha256:", variables["container_image"])
+            self.assertEqual(
+                json.loads((directory / "plan/release.json").read_text())["source_sha"],
+                "a" * 40,
+            )

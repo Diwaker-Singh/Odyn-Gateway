@@ -1,0 +1,32 @@
+name: Roll back Azure images
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Protected destination profile
+        type: choice
+        options: [deployment, disposable]
+        default: deployment
+      validation_only:
+        description: Run helpers without Azure calls or deployment
+        type: boolean
+        default: true
+      deployment_run_id:
+        description: Successful deploy.yml run with a verified-deployment artifact
+        type: string
+        required: false
+permissions:
+  contents: read
+jobs:
+  rollback:
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      target: ${{ inputs.target }}
+      validation_only: ${{ inputs.validation_only }}
+      rollback_deployment_run_id: ${{ inputs.deployment_run_id }}
+      orchestration_id: rollback-${{ github.run_id }}
+    secrets: inherit

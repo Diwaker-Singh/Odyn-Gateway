@@ -206,3 +206,26 @@ Application apply now requires a clean second plan using the saved plan's exact
 variables, then readiness and public health/auth-rejection/CORS checks. These are
 safe smoke checks, not live provider, distributed limits, or alert-delivery proof.
 Use the [lifecycle guide](pipeline-lifecycle.md) for first setup and cleanup.
+
+## Roll back a verified release
+
+`rollback.yml` calls the same protected implementation as `deploy.yml`, defaults
+to validation only, and uses the same mutation lock, exact-source CI, scoped
+OIDC, encrypted saved plan, approval, no-change second plan and smoke checks.
+Select the correct target and supply a successful **deploy.yml** run ID with a
+`verified-deployment` artifact (retained for 90 days). Older runs without this
+artifact cannot be selected. Missing/expired artifacts stop the workflow.
+
+After successful deployment verification, that artifact records the immutable
+image references, original release source, deployment source/run, target and
+configuration fingerprint. Rollback verifies the originating run through the
+GitHub API and rejects other repositories, profiles, configuration fingerprints,
+failed runs and unpinned images. It preserves current configuration and rejects
+Terraform changes beyond existing Container App image updates. It does not
+restore data, secrets, infrastructure or a previous Terraform state, and does
+not automatically replay failed provider requests. No automatic failure rollback
+is performed; investigate an unhealthy revision before dispatching this action.
+
+Local tests validate rollback provenance and reject create/delete/replacement,
+unrelated drift and unknown configuration. Azure rollout/rollback validation
+must be recorded separately; helper success is not evidence of a live cutover.

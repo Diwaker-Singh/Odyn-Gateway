@@ -72,7 +72,11 @@ def main():
     ):
         delivery = yaml.safe_load((ROOT / ".github/workflows" / filename).read_text())
         triggers = delivery.get("on", delivery.get(True))
-        assert list(triggers) == ["workflow_dispatch"]
+        assert list(triggers) == (
+            ["workflow_dispatch", "workflow_call"]
+            if filename == "deploy.yml"
+            else ["workflow_dispatch"]
+        )
         assert delivery["permissions"] == {"contents": "read"}
         assert delivery["concurrency"]["cancel-in-progress"] is False
         jobs = delivery["jobs"]
@@ -108,6 +112,20 @@ def main():
                 if step.get("uses", "").startswith("actions/upload-artifact"):
                     assert ".tfplan" not in step["with"]["path"]
                     assert ".tfvars" not in step["with"]["path"]
+    rollback = yaml.safe_load((ROOT / ".github/workflows/rollback.yml").read_text())
+    triggers = rollback.get("on", rollback.get(True))
+    assert list(triggers) == ["workflow_dispatch"]
+    assert triggers["workflow_dispatch"]["inputs"]["validation_only"]["default"] is True
+    job = rollback["jobs"]["rollback"]
+    assert job["uses"] == "./.github/workflows/deploy.yml"
+    assert (
+        job["with"]["rollback_deployment_run_id"] == "${{ inputs.deployment_run_id }}"
+    )
+    assert job["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "id-token": "write",
+    }
     recovery = yaml.safe_load(
         (ROOT / ".github/workflows/state-recovery.yml").read_text()
     )

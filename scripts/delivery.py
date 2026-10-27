@@ -105,6 +105,7 @@ def context():
     return {
         "source_sha": os.environ["GITHUB_SHA"],
         "component": os.environ.get("ODYN_INFRA_COMPONENT", "application"),
+        "rollback_deployment_run_id": os.environ.get("ROLLBACK_DEPLOYMENT_RUN_ID", ""),
         "resource_group": os.environ["AZURE_RESOURCE_GROUP"],
         "registry": os.environ["ACR_LOGIN_SERVER"],
         "subscription": account["id"],
@@ -181,9 +182,16 @@ def prepare_infrastructure(directory):
 
 
 def prepare(directory, receipt):
+    rollback_id = os.environ.get("ROLLBACK_DEPLOYMENT_RUN_ID", "")
+    deployment = json.loads(receipt.read_text())
+    if rollback_id:
+        validate_deployment(deployment, workflow_run(rollback_id), rollback_id)
+        record = deployment["release"]
+    else:
+        record = deployment
     record = validate_release(
-        json.loads(receipt.read_text()),
-        os.environ["GITHUB_SHA"],
+        record,
+        record["source_sha"] if rollback_id else os.environ["GITHUB_SHA"],
         os.environ["ACR_LOGIN_SERVER"],
     )
     variables = json.loads(os.environ["APPLICATION_TFVARS_JSON"])
@@ -203,6 +211,130 @@ def prepare(directory, receipt):
     directory.mkdir(parents=True, mode=0o700, exist_ok=True)
     (directory / "application.tfvars.json").write_text(json.dumps(variables))
     (directory / "backend.json").write_text(json.dumps(backend))
+    (directory / "release.json").write_text(json.dumps(record))
+
+
+def workflow_run(run_id):
+    if not re.fullmatch(r"[1-9][0-9]*", str(run_id)):
+        raise ValueError("Invalid workflow run ID")
+    return json.loads(
+        run(
+            [
+                "gh",
+                "api",
+                f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}",
+            ]
+        )
+    )
+
+
+def validate_deployment(record, metadata, run_id):
+    """Only a completed deployment in this repository/profile can be restored."""
+    current = context()
+    if (
+        str(metadata.get("id")) != str(run_id)
+        or metadata.get("path") != ".github/workflows/deploy.yml"
+        or metadata.get("event") not in ("workflow_dispatch", "workflow_call")
+        or metadata.get("head_branch") != "main"
+        or metadata.get("status") != "completed"
+        or metadata.get("conclusion") != "success"
+        or metadata.get("repository", {}).get("full_name")
+        != os.environ["GITHUB_REPOSITORY"]
+        or record.get("schema") != 1
+        or record.get("deployment_run_id") != str(run_id)
+        or record.get("deployment_source") != metadata.get("head_sha")
+        or record.get("target") != os.environ.get("DELIVERY_TARGET", "deployment")
+        or record.get("context", {}).get("inputs_sha256") != current["inputs_sha256"]
+        or any(
+            record.get("context", {}).get(k) != current[k]
+            for k in ("subscription", "tenant", "resource_group", "registry")
+        )
+    ):
+        raise ValueError("Rollback deployment provenance or configuration mismatch")
+    validate_release(
+        record["release"],
+        record["release"]["source_sha"],
+        os.environ["ACR_LOGIN_SERVER"],
+    )
+
+
+def deployment_record(directory):
+    """Publish image provenance only after apply, no-change plan and smoke pass."""
+    record = {
+        "schema": 1,
+        "deployment_run_id": os.environ["GITHUB_RUN_ID"],
+        "deployment_source": os.environ["GITHUB_SHA"],
+        "target": os.environ.get("DELIVERY_TARGET", "deployment"),
+        "context": context(),
+        "release": json.loads((directory / "release.json").read_text()),
+    }
+    (directory / "deployment.json").write_text(json.dumps(record))
+
+
+def rollback_plan(rendered):
+    """Rollback changes only existing container images; unrelated drift stops it."""
+    changed = 0
+    for resource in rendered.get("resource_changes", []):
+        change = resource["change"]
+        if change["actions"] == ["no-op"]:
+            continue
+        if resource["type"] != "azurerm_container_app" or change["actions"] != [
+            "update"
+        ]:
+            raise ValueError("Rollback must update existing container images only")
+
+        def differences(before, after, unknown, path=()):
+            if unknown is True:
+                if path not in (
+                    ("latest_revision_name",),
+                    ("latest_revision_fqdn",),
+                    ("latest_ready_revision_name",),
+                    ("outbound_ip_addresses",),
+                ):
+                    raise ValueError("Unexpected unknown value in rollback plan")
+                return []
+            if isinstance(before, dict) and isinstance(after, dict):
+                return [
+                    p
+                    for k in before.keys() | after.keys()
+                    for p in differences(
+                        before.get(k),
+                        after.get(k),
+                        (unknown or {}).get(k, False),
+                        (*path, k),
+                    )
+                ]
+            if (
+                isinstance(before, list)
+                and isinstance(after, list)
+                and len(before) == len(after)
+            ):
+                return [
+                    p
+                    for i, (a, b) in enumerate(zip(before, after))
+                    for p in differences(
+                        a,
+                        b,
+                        unknown[i]
+                        if isinstance(unknown, list) and i < len(unknown)
+                        else False,
+                        (*path, i),
+                    )
+                ]
+            return [] if before == after else [path]
+
+        paths = differences(
+            change.get("before"), change.get("after"), change.get("after_unknown", {})
+        )
+        if any(
+            len(p) != 5 or p[:3] != ("template", 0, "container") or p[-1] != "image"
+            for p in paths
+        ):
+            raise ValueError(
+                "Rollback would change configuration beyond container images"
+            )
+        changed += len(paths)
+    return changed
 
 
 def adopt_bootstrap_group(directory):
@@ -281,6 +413,8 @@ def seal(directory):
             ]
         )
     )
+    if os.environ.get("ROLLBACK_DEPLOYMENT_RUN_ID"):
+        rollback_plan(rendered)
     receipt = context() | {
         "schema": 1,
         "created": int(time.time()),
@@ -288,7 +422,13 @@ def seal(directory):
         "changes": plan_summary(rendered, os.environ["AZURE_RESOURCE_GROUP"]),
     }
     bundle = json.dumps(
-        {"receipt": receipt, "plan": base64.b64encode(plan.read_bytes()).decode()}
+        {
+            "receipt": receipt,
+            "plan": base64.b64encode(plan.read_bytes()).decode(),
+            "release": json.loads((directory / "release.json").read_text())
+            if (directory / "release.json").exists()
+            else None,
+        }
     ).encode()
     nonce = os.urandom(12)
     (directory / "plan.enc").write_bytes(
@@ -326,6 +466,13 @@ def unseal(directory):
     if sha256(plan) != receipt["plan_sha256"]:
         raise ValueError("Plan hash mismatch")
     (directory / "application.tfplan").write_bytes(plan)
+    if bundle.get("release"):
+        validate_release(
+            bundle["release"],
+            bundle["release"]["source_sha"],
+            os.environ["ACR_LOGIN_SERVER"],
+        )
+        (directory / "release.json").write_text(json.dumps(bundle["release"]))
 
 
 def publication(directory):
@@ -431,6 +578,7 @@ def main():
             "seal",
             "unseal",
             "publish",
+            "record-deployment",
         ),
     )
     parser.add_argument("--directory", type=Path, required=True)
@@ -443,6 +591,8 @@ def main():
         prepare(args.directory, args.release)
     elif args.action == "adopt-bootstrap-group":
         adopt_bootstrap_group(args.directory)
+    elif args.action == "record-deployment":
+        deployment_record(args.directory)
     elif args.action == "seal":
         seal(args.directory)
     elif args.action == "unseal":
