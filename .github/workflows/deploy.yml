@@ -217,7 +217,7 @@ jobs:
     needs: plan
     environment: ${{ inputs.target == 'disposable' && 'azure-test-deploy' || 'azure-deploy' }}
     runs-on: [self-hosted, linux, x64, odyn-azure]
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: read
       actions: read
@@ -297,8 +297,6 @@ jobs:
               assert len(apps) == 1, 'Expected one gateway app'
               p = apps[0]['properties']
               if p.get('latestRevisionName') and p.get('latestRevisionName') == p.get('latestReadyRevisionName'):
-                  with urllib.request.urlopen(url, timeout=10) as response:
-                      assert response.status == 200
                   break
               time.sleep(10)
           else:

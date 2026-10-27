@@ -112,6 +112,54 @@ class CloudSmokeTests(unittest.TestCase):
         self.assertTrue(all(results.values()))
         self.assertEqual(len(calls), 3)
 
+    def test_retries_only_transient_edge_health_misses(self):
+        statuses = iter((404, 503, 200))
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            if request.method == "GET":
+                return httpx.Response(
+                    next(statuses),
+                    headers={"Strict-Transport-Security": "max-age=31536000"},
+                )
+            if request.method == "POST":
+                return httpx.Response(401)
+            return httpx.Response(
+                204, headers={"Access-Control-Allow-Origin": "https://ui.invalid"}
+            )
+
+        with patch.object(MODULE.time, "sleep") as sleep:
+            results = MODULE.check_edge(
+                "https://edge.invalid/v1/chat",
+                "https://ui.invalid",
+                httpx.MockTransport(handler),
+                health_attempts=3,
+                health_interval_seconds=0,
+            )
+        self.assertTrue(all(results.values()))
+        self.assertEqual(sum(call.method == "GET" for call in calls), 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_non_transient_health_status_fails_without_retry(self):
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(401)
+
+        with patch.object(MODULE.time, "sleep") as sleep:
+            results = MODULE.check_edge(
+                "https://edge.invalid/v1/chat",
+                "https://ui.invalid",
+                httpx.MockTransport(handler),
+                health_attempts=3,
+                health_interval_seconds=0,
+            )
+        self.assertFalse(results["health"])
+        self.assertEqual(calls[0].method, "GET")
+        self.assertEqual(sleep.call_count, 0)
+
     def test_untrusted_url_shapes_are_rejected_before_network(self):
         for url in (
             "http://edge.invalid/v1/chat",

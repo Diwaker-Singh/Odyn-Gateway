@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -53,7 +54,13 @@ def deployment_chat_url(group):
     return f"https://{host}/v1/chat"
 
 
-def check_edge(chat_url, origin, transport=None):
+def check_edge(
+    chat_url,
+    origin,
+    transport=None,
+    health_attempts=60,
+    health_interval_seconds=20,
+):
     parsed = urlsplit(chat_url)
     if (
         parsed.scheme != "https"
@@ -68,10 +75,29 @@ def check_edge(chat_url, origin, transport=None):
         raise ValueError("Expected a trusted HTTPS /v1/chat URL")
     results = {}
     with httpx.Client(transport=transport, follow_redirects=False, timeout=8) as client:
-        response = client.get(chat_url.removesuffix("/v1/chat") + "/v1/healthz")
-        results["health"] = response.status_code == 200
-        results["hsts"] = "max-age=" in response.headers.get(
-            "strict-transport-security", ""
+        health_url = chat_url.removesuffix("/v1/chat") + "/v1/healthz"
+        results["health"] = False
+        # AFD can accept an ARM route update before the global edge deployment
+        # is visible. Retry bounded transient misses during that propagation
+        # window; fail immediately on policy/configuration statuses like 401.
+        for attempt in range(health_attempts):
+            try:
+                response = client.get(health_url)
+            except httpx.HTTPError:
+                if attempt + 1 == health_attempts:
+                    break
+            else:
+                if response.status_code == 200:
+                    results["health"] = True
+                    break
+                if response.status_code not in (404, 500, 502, 503, 504):
+                    break
+            if attempt + 1 < health_attempts:
+                time.sleep(health_interval_seconds)
+        results["hsts"] = (
+            "max-age=" in response.headers.get("strict-transport-security", "")
+            if "response" in locals()
+            else False
         )
         # Empty unauthenticated input cannot be an authorized provider request.
         response = client.post(chat_url, json={})
