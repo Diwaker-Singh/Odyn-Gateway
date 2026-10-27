@@ -568,3 +568,43 @@ class DiagnosticTests(unittest.TestCase):
             path = Path(temp) / "delivery-error.log"
             self.assertEqual(path.read_text(), "PRIVATE_ERROR")
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_helper_exception_is_saved_for_encrypted_diagnostics(self):
+        encryption_key = b"y" * 32
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(
+                os.environ,
+                {
+                    "ODYN_DELIVERY_DIR": temp,
+                    "PLAN_ENCRYPTION_KEY": base64.b64encode(encryption_key).decode(),
+                },
+            ),
+        ):
+            MODULE.save_failure(ValueError("adoption precondition failed"))
+            path = Path(temp) / "delivery-error.log"
+            self.assertIn("ValueError: adoption precondition failed", path.read_text())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            MODULE.diagnostics(Path(temp))
+            cipher = (Path(temp) / "diagnostics.enc").read_bytes()
+            self.assertNotIn(b"adoption precondition failed", cipher)
+            payload = AESGCM(encryption_key).decrypt(
+                cipher[:12], cipher[12:], b"odyn-delivery-diagnostics-v1"
+            )
+            self.assertIn(b"adoption precondition failed", payload)
+
+    def test_foundation_workflow_encrypts_failure_logs_before_cleanup(self):
+        workflow = (ROOT / ".github/workflows/infrastructure.yml").read_text()
+        self.assertEqual(
+            workflow.count("Encrypt foundation plan diagnostics on failure"), 1
+        )
+        self.assertEqual(
+            workflow.count("Encrypt foundation apply diagnostics on failure"), 1
+        )
+        self.assertEqual(
+            workflow.count("encrypted-foundation-diagnostics-${{ github.job }}"), 2
+        )
+        self.assertLess(
+            workflow.index("Encrypt foundation plan diagnostics on failure"),
+            workflow.index("Remove private temporary files"),
+        )

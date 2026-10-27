@@ -97,6 +97,19 @@ jobs:
           python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"
           terraform -chdir="$ODYN_DELIVERY_DIR/root" plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1
           python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"
+      - name: Encrypt foundation plan diagnostics on failure
+        if: failure()
+        run: |
+          umask 077
+          export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-foundation-$GITHUB_RUN_ID"
+          python scripts/delivery.py diagnostics --directory "$ODYN_DELIVERY_DIR"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: encrypted-foundation-diagnostics-${{ github.job }}
+          path: ${{ runner.temp }}/odyn-foundation-${{ github.run_id }}/diagnostics.enc
+          retention-days: 1
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: encrypted-foundation-plan
@@ -162,6 +175,19 @@ jobs:
           terraform -chdir="$ODYN_DELIVERY_DIR/root" apply -input=false "$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/apply.log" 2>&1
           terraform -chdir="$ODYN_DELIVERY_DIR/root" plan -input=false -detailed-exitcode -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" > "$ODYN_DELIVERY_DIR/second-plan.log" 2>&1
           printf '### Foundation verification\nSaved plan applied; second plan returned no changes.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Encrypt foundation apply diagnostics on failure
+        if: failure()
+        run: |
+          umask 077
+          export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-foundation-$GITHUB_RUN_ID"
+          python scripts/delivery.py diagnostics --directory "$ODYN_DELIVERY_DIR"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: encrypted-foundation-diagnostics-${{ github.job }}
+          path: ${{ runner.temp }}/odyn-foundation-${{ github.run_id }}/diagnostics.enc
+          retention-days: 1
+          if-no-files-found: error
       - name: Remove private temporary files
         if: always()
         run: rm -rf "$RUNNER_TEMP/odyn-foundation-$GITHUB_RUN_ID"

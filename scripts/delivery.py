@@ -70,6 +70,22 @@ def diagnostics(directory):
     target.chmod(0o600)
 
 
+def save_failure(error):
+    """Append a bounded helper failure to the private log for encryption."""
+    directory = os.environ.get("ODYN_DELIVERY_DIR")
+    if not directory:
+        return
+    root = Path(directory)
+    if not root.is_dir():
+        return
+    target = root / "delivery-error.log"
+    if target.is_symlink():
+        return
+    with target.open("a", encoding="utf-8") as stream:
+        stream.write(f"\n{type(error).__name__}: {str(error)[-32768:]}\n")
+    target.chmod(0o600)
+
+
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -657,5 +673,6 @@ if __name__ == "__main__":
         TypeError,
         InvalidTag,
         subprocess.SubprocessError,
-    ):
+    ) as error:
+        save_failure(error)
         raise SystemExit("Delivery failed; sensitive diagnostics suppressed.") from None
