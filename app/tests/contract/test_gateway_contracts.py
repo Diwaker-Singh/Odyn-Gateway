@@ -321,6 +321,11 @@ class AzureConfigurationRegressionTests(unittest.TestCase):
 
     def test_azure_front_door_redirect_and_workbook_provider_contracts(self):
         edge = (ROOT / "infra/modules/llm-gateway/azure/edge.tf").read_text()
+        origin = edge.split(
+            'resource "azurerm_cdn_frontdoor_origin" "main"', 1
+        )[1].split('\nresource "', 1)[0]
+        self.assertRegex(origin, r"enabled\s*=\s*true")
+
         route = edge.split('resource "azurerm_cdn_frontdoor_route" "main"', 1)[1]
         route = " ".join(route.split())
         self.assertRegex(route, r'supported_protocols\s*=\s*\["Http", "Https"\]')

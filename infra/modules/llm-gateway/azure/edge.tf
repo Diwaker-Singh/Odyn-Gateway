@@ -24,6 +24,7 @@ resource "azurerm_cdn_frontdoor_origin_group" "main" {
 resource "azurerm_cdn_frontdoor_origin" "main" {
   name                           = "apim"
   cdn_frontdoor_origin_group_id  = azurerm_cdn_frontdoor_origin_group.main.id
+  enabled                        = true
   host_name                      = replace(azurerm_api_management.main.gateway_url, "https://", "")
   origin_host_header             = replace(azurerm_api_management.main.gateway_url, "https://", "")
   certificate_name_check_enabled = true
