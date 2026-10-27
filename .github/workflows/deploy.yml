@@ -200,6 +200,16 @@ jobs:
           path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/plan.enc
           retention-days: 1
           if-no-files-found: error
+      - name: Encrypt bounded failure diagnostics
+        if: failure()
+        run: python scripts/delivery.py diagnostics --directory "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: encrypted-delivery-diagnostics-${{ github.job }}
+          path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/diagnostics.enc
+          retention-days: 1
+          if-no-files-found: error
       - name: Remove private temporary files
         if: always()
         run: rm -rf "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID" infra/envs/dev/azure/.terraform .artifacts/release .artifacts/rollback
@@ -305,6 +315,16 @@ jobs:
           name: verified-deployment
           path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/deployment.json
           retention-days: 90
+          if-no-files-found: error
+      - name: Encrypt bounded failure diagnostics
+        if: failure()
+        run: python scripts/delivery.py diagnostics --directory "$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: encrypted-delivery-diagnostics-${{ github.job }}
+          path: ${{ runner.temp }}/odyn-delivery-${{ github.run_id }}/diagnostics.enc
+          retention-days: 1
           if-no-files-found: error
       - name: Remove private temporary files
         if: always()

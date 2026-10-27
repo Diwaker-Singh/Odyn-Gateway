@@ -232,3 +232,11 @@ is performed; investigate an unhealthy revision before dispatching this action.
 Local tests validate rollback provenance and reject create/delete/replacement,
 unrelated drift and unknown configuration. Azure rollout/rollback validation
 must be recorded separately; helper success is not evidence of a live cutover.
+
+### Failure diagnostics
+
+Failed application plan/apply jobs preserve only an AES-GCM encrypted diagnostic
+artifact for one day before removing private runner files. It contains bounded
+log tails, never a raw saved-plan file. Access requires the protected plan key;
+raw logs are not printed or uploaded. This preserves useful errors without
+relaxing source, identity, state, approval or secret-redaction controls.

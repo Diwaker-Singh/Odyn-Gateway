@@ -497,3 +497,74 @@ class RollbackTests(unittest.TestCase):
                 json.loads((directory / "plan/release.json").read_text())["source_sha"],
                 "a" * 40,
             )
+
+
+class DiagnosticTests(unittest.TestCase):
+    def test_failure_logs_are_bounded_and_only_ciphertext_is_preserved(self):
+        encryption_key = b"x" * 32
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(
+                os.environ,
+                {
+                    "PLAN_ENCRYPTION_KEY": base64.b64encode(encryption_key).decode(),
+                },
+            ),
+        ):
+            directory = Path(temp)
+            (directory / "plan.log").write_text("X" * 300000 + "PRIVATE_DIAGNOSTIC")
+            (directory / "application.tfplan").write_text("DO_NOT_INCLUDE_PLAN")
+            MODULE.diagnostics(directory)
+            cipher = (directory / "diagnostics.enc").read_bytes()
+            self.assertNotIn(b"PRIVATE_DIAGNOSTIC", cipher)
+            payload = json.loads(
+                AESGCM(encryption_key).decrypt(
+                    cipher[:12], cipher[12:], b"odyn-delivery-diagnostics-v1"
+                )
+            )
+            self.assertEqual(set(payload["logs"]), {"plan.log"})
+            self.assertLessEqual(len(payload["logs"]["plan.log"]), 262144)
+            self.assertTrue(payload["logs"]["plan.log"].endswith("PRIVATE_DIAGNOSTIC"))
+            self.assertEqual(
+                (directory / "diagnostics.enc").stat().st_mode & 0o777, 0o600
+            )
+
+    def test_symlink_log_is_not_archived(self):
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(
+                os.environ,
+                {
+                    "PLAN_ENCRYPTION_KEY": base64.b64encode(b"x" * 32).decode(),
+                },
+            ),
+        ):
+            directory = Path(temp)
+            (directory / "private").write_text("DO_NOT_READ")
+            (directory / "plan.log").symlink_to(directory / "private")
+            MODULE.diagnostics(directory)
+            cipher = (directory / "diagnostics.enc").read_bytes()
+            data = AESGCM(b"x" * 32).decrypt(
+                cipher[:12], cipher[12:], b"odyn-delivery-diagnostics-v1"
+            )
+            self.assertNotIn(b"DO_NOT_READ", data)
+
+    def test_failed_subprocess_saves_private_diagnostic_without_printing(self):
+        import subprocess
+
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(os.environ, {"ODYN_DELIVERY_DIR": temp}),
+            patch.object(
+                MODULE.subprocess,
+                "run",
+                side_effect=subprocess.CalledProcessError(
+                    1, ["terraform"], stderr="PRIVATE_ERROR"
+                ),
+            ),
+        ):
+            with self.assertRaises(subprocess.CalledProcessError):
+                MODULE.run(["terraform"])
+            path = Path(temp) / "delivery-error.log"
+            self.assertEqual(path.read_text(), "PRIVATE_ERROR")
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)

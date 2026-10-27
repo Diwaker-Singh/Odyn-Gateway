@@ -23,8 +23,51 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(args):
-    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    try:
+        result = subprocess.run(args, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        directory = os.environ.get("ODYN_DELIVERY_DIR")
+        if directory and Path(directory).is_dir():
+            target = Path(directory) / "delivery-error.log"
+            if not target.is_symlink():
+                target.write_text(
+                    (error.stderr or "")[-262144:] + (error.stdout or "")[-262144:]
+                )
+                target.chmod(0o600)
+        raise
     return result.stdout.strip()
+
+
+def diagnostics(directory):
+    """Keep bounded failure logs encrypted; never upload raw plans or logs."""
+    directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+    logs = {}
+    for name in (
+        "init.log",
+        "plan.log",
+        "apply.log",
+        "second-plan.log",
+        "delivery-error.log",
+    ):
+        path = directory / name
+        if path.is_file() and not path.is_symlink():
+            with path.open("rb") as stream:
+                stream.seek(max(0, path.stat().st_size - 262144))
+                logs[name] = stream.read(262144).decode(errors="replace")
+    payload = json.dumps(
+        {
+            "schema": 1,
+            "source": os.environ.get("GITHUB_SHA"),
+            "run": os.environ.get("GITHUB_RUN_ID"),
+            "logs": logs,
+        }
+    ).encode()
+    nonce = os.urandom(12)
+    target = directory / "diagnostics.enc"
+    target.write_bytes(
+        nonce + AESGCM(key()).encrypt(nonce, payload, b"odyn-delivery-diagnostics-v1")
+    )
+    target.chmod(0o600)
 
 
 def sha256(data):
@@ -579,13 +622,16 @@ def main():
             "unseal",
             "publish",
             "record-deployment",
+            "diagnostics",
         ),
     )
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--release", type=Path)
     args = parser.parse_args()
     os.umask(0o077)
-    if args.action == "prepare-infrastructure":
+    if args.action == "diagnostics":
+        diagnostics(args.directory)
+    elif args.action == "prepare-infrastructure":
         prepare_infrastructure(args.directory)
     elif args.action == "prepare":
         prepare(args.directory, args.release)
