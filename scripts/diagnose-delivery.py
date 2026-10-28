@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from delivery import classify_init_failure
+from delivery import classify_init_failure, init_failure_signals
 
 
 def main():
@@ -37,6 +37,7 @@ def main():
         "run": payload.get("run"),
         "stage": "terraform-init",
         "category": classify_init_failure(init_log),
+        "signals": init_failure_signals(init_log),
         "raw_logs_emitted": False,
     }
     print(json.dumps(report, sort_keys=True))

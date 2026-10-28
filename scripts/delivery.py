@@ -203,6 +203,36 @@ def classify_init_failure(content):
     return "TERRAFORM_INIT_OTHER"
 
 
+def init_failure_signals(content):
+    """Return only fixed safe indicators that explain backend access failures."""
+    text = content.lower()
+    markers = (
+        (
+            "storage_account_missing",
+            ("storageaccountnotfound", "storage account was not found"),
+        ),
+        ("state_container_missing", ("containernotfound", "container was not found")),
+        (
+            "storage_authorization_denied",
+            (
+                "authorizationpermissionmismatch",
+                "authorizationfailure",
+                "status code 403",
+                " 403",
+                "forbidden",
+            ),
+        ),
+        (
+            "network_acl_denied",
+            ("ipforbidden", "networkaclsvalidationfailure", "network access is denied"),
+        ),
+        ("blob_listing_failed", ("listing blobs", "failed to list blobs")),
+        ("workspace_discovery_failed", ("failed to get existing workspaces",)),
+    )
+    found = [name for name, values in markers if any(value in text for value in values)]
+    return found or ["no_specific_safe_marker"]
+
+
 def save_failure(error):
     """Append a bounded helper failure to the private log for encryption."""
     directory = os.environ.get("ODYN_DELIVERY_DIR")

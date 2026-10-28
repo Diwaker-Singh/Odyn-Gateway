@@ -108,6 +108,22 @@ class DeliveryTests(unittest.TestCase):
         self.assertNotIn("odynprivate123", result)
         self.assertNotIn("do-not-print", result)
 
+    def test_init_failure_signals_are_allowlisted_and_specific(self):
+        self.assertEqual(
+            MODULE.init_failure_signals(
+                "Failed to get existing workspaces: listing blobs returned 403"
+            ),
+            [
+                "storage_authorization_denied",
+                "blob_listing_failed",
+                "workspace_discovery_failed",
+            ],
+        )
+        self.assertEqual(
+            MODULE.init_failure_signals("storage account secret-name unavailable"),
+            ["no_specific_safe_marker"],
+        )
+
     def test_destroy_and_replacement_are_rejected(self):
         for actions in (["delete"], ["delete", "create"]):
             with self.assertRaises(ValueError):
