@@ -480,6 +480,134 @@ class GroupAdoptionTests(unittest.TestCase):
                             any("import" in call.args[0] for call in run.call_args_list)
                         )
 
+    def test_application_adopts_only_exact_tagged_empty_group_and_empty_state(self):
+        module = self.delivery
+        group = "rg-odyn-gateway-demo10"
+        tags = {
+            "project": "odyn-gateway",
+            "environment": "demo10",
+            "managed_by": "terraform",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "application.tfvars.json").write_text(
+                json.dumps(
+                    {
+                        "environment": "demo10",
+                        "resource_group_name": group,
+                    }
+                )
+            )
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "AZURE_RESOURCE_GROUP": group,
+                        "AZURE_SUBSCRIPTION_ID": "sub-id",
+                        "ODYN_INFRA_COMPONENT": "application",
+                        "TF_BACKEND_JSON": json.dumps(
+                            {
+                                "storage_account_name": "state",
+                                "container_name": "state",
+                                "key": "application.tfstate",
+                            }
+                        ),
+                    },
+                ),
+                patch.object(
+                    module, "context", return_value={"subscription": "sub-id"}
+                ),
+                patch.object(
+                    module,
+                    "run",
+                    side_effect=[
+                        '{"exists": false}',
+                        "true",
+                        json.dumps({"id": f"/groups/{group}", "tags": tags}),
+                        "[]",
+                        "",
+                    ],
+                ) as run,
+            ):
+                module.adopt_bootstrap_group(directory)
+                imports = [
+                    call.args[0]
+                    for call in run.call_args_list
+                    if "import" in call.args[0]
+                ]
+                self.assertEqual(len(imports), 1)
+                self.assertEqual(imports[0][-1], f"/groups/{group}")
+
+    def test_application_adoption_rejects_other_tags_resources_or_existing_state(self):
+        module = self.delivery
+        group = "rg-odyn-gateway-demo10"
+        tags = {
+            "project": "odyn-gateway",
+            "environment": "demo10",
+            "managed_by": "terraform",
+        }
+        cases = (
+            (tags | {"owner": "unexpected"}, "[]", False, "ownership"),
+            (tags, '[{"id":"survivor"}]', False, "resources"),
+            (tags, "[]", True, "state"),
+        )
+        for candidate_tags, resources, state_exists, reason in cases:
+            with (
+                self.subTest(reason=reason),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                directory = Path(temporary)
+                (directory / "application.tfvars.json").write_text(
+                    json.dumps(
+                        {
+                            "environment": "demo10",
+                            "resource_group_name": group,
+                        }
+                    )
+                )
+                state_response = (
+                    '{"exists": true}' if state_exists else '{"exists": false}'
+                )
+                state_list = "azurerm_resource.some_existing" if state_exists else ""
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "AZURE_RESOURCE_GROUP": group,
+                            "AZURE_SUBSCRIPTION_ID": "sub-id",
+                            "ODYN_INFRA_COMPONENT": "application",
+                            "TF_BACKEND_JSON": json.dumps(
+                                {
+                                    "storage_account_name": "state",
+                                    "container_name": "state",
+                                    "key": "application.tfstate",
+                                }
+                            ),
+                        },
+                    ),
+                    patch.object(
+                        module, "context", return_value={"subscription": "sub-id"}
+                    ),
+                    patch.object(
+                        module,
+                        "run",
+                        side_effect=[
+                            state_response,
+                            state_list,
+                            "true",
+                            json.dumps(
+                                {"id": f"/groups/{group}", "tags": candidate_tags}
+                            ),
+                            resources,
+                        ],
+                    ) as run,
+                ):
+                    with self.assertRaises(ValueError):
+                        module.adopt_bootstrap_group(directory)
+                    self.assertFalse(
+                        any("import" in call.args[0] for call in run.call_args_list)
+                    )
+
     def test_existing_state_address_is_never_imported_again(self):
         with (
             patch.dict(

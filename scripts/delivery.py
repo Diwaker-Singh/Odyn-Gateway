@@ -476,9 +476,32 @@ def adopt_bootstrap_group(directory):
         "purpose": "terraform-state",
         "managed_by": "terraform",
     }
-    if not execution_owned and not bootstrap_owned and not registry_owned:
+    application_owned = False
+    if os.environ.get("ODYN_INFRA_COMPONENT") == "application":
+        variables = json.loads((directory / "application.tfvars.json").read_text())
+        environment = variables.get("environment")
+        application_owned = (
+            isinstance(environment, str)
+            and variables.get("resource_group_name") == group
+            and tags
+            == {
+                "project": "odyn-gateway",
+                "environment": environment,
+                "managed_by": "terraform",
+            }
+        )
+    if (
+        not execution_owned
+        and not bootstrap_owned
+        and not registry_owned
+        and not application_owned
+    ):
         raise ValueError("Unmanaged existing group requires explicit state recovery")
     if address not in state_addresses:
+        if application_owned and state_addresses:
+            raise ValueError(
+                "Existing application state requires explicit state recovery"
+            )
         if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):
             raise ValueError(
                 "Cannot import a nonempty group through bootstrap adoption"

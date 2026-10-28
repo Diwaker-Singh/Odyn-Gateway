@@ -138,9 +138,11 @@ Set `AZURE_EXECUTION_ENABLED=true` after configuration. Run `execution.yml` with
 `action=test` to provision, execute its private tool/credential-isolation probe,
 and retire the disposable runner, or `action=start` / `action=stop` for a bounded
 lease. Stop verifies ownership before deletion and removes temporary network
-links and runner registrations. Precreated, empty bootstrap-owned destination
-groups are imported by the delivery workflow before planning; nonempty groups
-or missing state for existing resources require explicit recovery.
+links and runner registrations. Delivery may import a precreated application
+resource group only when its project, environment and Terraform ownership tags
+exactly match the configured target, the group is empty, and the application
+state has no resource addresses. Nonempty groups, nonempty state, or mismatched
+ownership require explicit state recovery before planning.
 
 For a permanent execution identity scoped to its dedicated resource group, set
 `"retain_group": true` in `EXECUTION_CONFIG_JSON`. Retirement then removes the
