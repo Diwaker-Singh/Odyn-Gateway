@@ -34,6 +34,7 @@ class ExecutionTests(unittest.TestCase):
             "AZURE_CLIENT_ID": "33333333-3333-4333-8333-333333333333",
             "GITHUB_REPOSITORY": "owner/repo",
             "GITHUB_REF": "refs/heads/main",
+            "ODYN_STATE_STORAGE_ACCOUNT_ID": "",
         }
 
     def test_configuration_validates_before_writes(self):
@@ -50,6 +51,82 @@ class ExecutionTests(unittest.TestCase):
                 patch.dict(
                     os.environ,
                     self.environment() | {"EXECUTION_CONFIG_JSON": json.dumps(config)},
+                ),
+                self.assertRaises(ValueError),
+            ):
+                M.config()
+
+    def test_checked_in_state_storage_is_always_linked_for_runner_lifecycle(self):
+        state_id = (
+            "/subscriptions/11111111-1111-4111-8111-111111111111/"
+            "resourceGroups/rg-odyn-gateway-tfstate/providers/Microsoft.Storage/"
+            "storageAccounts/stodyngatewaytfstate"
+        )
+        with patch.dict(
+            os.environ,
+            self.environment() | {"ODYN_STATE_STORAGE_ACCOUNT_ID": state_id},
+        ):
+            value = M.config()
+        self.assertEqual(value["storage"], [{"id": state_id}])
+
+        with (
+            patch.dict(os.environ, self.environment()),
+            patch.object(M, "az", return_value=None) as az,
+        ):
+            M.network_links(value)
+        self.assertTrue(
+            any(
+                "network-rule" in call.args
+                and "add" in call.args
+                and "stodyngatewaytfstate" in call.args
+                for call in az.call_args_list
+            )
+        )
+
+        with (
+            patch.dict(os.environ, self.environment()),
+            patch.object(
+                M,
+                "az",
+                side_effect=[
+                    True,
+                    {
+                        "virtualNetworkRules": [
+                            {
+                                "virtualNetworkResourceId": (
+                                    "/subscriptions/11111111-1111-4111-8111-111111111111/"
+                                    "resourceGroups/rg-odyn-gateway-execution-test19/"
+                                    "providers/Microsoft.Network/virtualNetworks/execution/"
+                                    "subnets/runner"
+                                )
+                            }
+                        ]
+                    },
+                    None,
+                ],
+            ) as az,
+        ):
+            M.network_links(value, remove=True)
+        self.assertTrue(
+            any(
+                "network-rule" in call.args and "remove" in call.args
+                for call in az.call_args_list
+            )
+        )
+
+    def test_state_storage_variable_must_match_checked_in_backend(self):
+        invalid_ids = (
+            "/subscriptions/other/resourceGroups/rg-odyn-gateway-tfstate/"
+            "providers/Microsoft.Storage/storageAccounts/stodyngatewaytfstate",
+            "/subscriptions/11111111-1111-4111-8111-111111111111/"
+            "resourceGroups/rg-other/providers/Microsoft.Storage/"
+            "storageAccounts/otherstate",
+        )
+        for state_id in invalid_ids:
+            with (
+                patch.dict(
+                    os.environ,
+                    self.environment() | {"ODYN_STATE_STORAGE_ACCOUNT_ID": state_id},
                 ),
                 self.assertRaises(ValueError),
             ):
@@ -208,6 +285,7 @@ class ExecutionTests(unittest.TestCase):
             "runs-on: ubuntu-latest",
             "refs/heads/main",
             "AZURE_EXECUTION_ENABLED",
+            "ODYN_STATE_STORAGE_ACCOUNT_ID",
             "failure()",
             "python scripts/execution.py stop",
         ):

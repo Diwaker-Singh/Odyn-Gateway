@@ -82,6 +82,21 @@ def config():
             item["id"],
         ):
             raise ValueError("Storage must be in the configured subscription")
+    # The application state account is fixed by the checked-in Terraform
+    # backend. Keep it out of the opaque runner JSON secret so the same
+    # allowlisted account is always linked for startup and unlinked on stop.
+    state_storage_id = os.environ.get("ODYN_STATE_STORAGE_ACCOUNT_ID", "").strip()
+    if state_storage_id:
+        expected_state_storage_id = (
+            prefix
+            + "rg-odyn-gateway-tfstate/providers/Microsoft.Storage/"
+            + "storageAccounts/stodyngatewaytfstate"
+        )
+        if state_storage_id.lower() != expected_state_storage_id.lower():
+            raise ValueError("State storage must match the checked-in backend")
+        storage = value.setdefault("storage", [])
+        if not any(item["id"].lower() == state_storage_id.lower() for item in storage):
+            storage.append({"id": state_storage_id})
     vnet = value.get("application_vnet")
     if vnet and not re.fullmatch(
         re.escape(prefix)
