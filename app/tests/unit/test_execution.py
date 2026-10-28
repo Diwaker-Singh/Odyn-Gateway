@@ -319,14 +319,32 @@ class GroupAdoptionTests(unittest.TestCase):
         for tags, resources, expected in (
             ({"managed_by": "odyn-execution-pipeline"}, [], True),
             ({"managed_by": "terraform"}, [], False),
+            (
+                {
+                    "project": "odyn-gateway",
+                    "purpose": "terraform-state",
+                    "managed_by": "terraform",
+                },
+                [],
+                True,
+            ),
             ({"managed_by": "odyn-execution-pipeline"}, [{"id": "survivor"}], False),
+            (
+                {
+                    "project": "odyn-gateway",
+                    "purpose": "terraform-state",
+                    "managed_by": "terraform",
+                },
+                [{"id": "survivor"}],
+                False,
+            ),
         ):
             responses = [
                 '{"exists": false}',
                 "true",
                 json.dumps({"id": "/destination", "tags": tags}),
             ]
-            if tags["managed_by"] == "odyn-execution-pipeline":
+            if expected or resources:
                 responses.append(json.dumps(resources))
             if expected:
                 responses.append("")

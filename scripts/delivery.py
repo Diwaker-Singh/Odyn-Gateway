@@ -397,10 +397,13 @@ def rollback_plan(rendered):
 
 
 def adopt_bootstrap_group(directory):
-    """Import only an empty, explicitly bootstrap-owned destination group.
+    """Import only an empty, explicitly project-owned destination group.
 
     Precreation permits narrow group-scoped delivery roles after full cleanup.
     Existing application resources require state recovery, never this shortcut.
+    The bootstrap root's exact Terraform ownership tags are also accepted: that
+    root defines the same project/purpose/owner tuple and may predate this
+    execution pipeline. No other Terraform-tagged group is adopted.
     """
     context()
     root = infrastructure_root(directory)
@@ -442,7 +445,16 @@ def adopt_bootstrap_group(directory):
     if json.loads(run(["az", "group", "exists", "-n", group, "-o", "json"])) is False:
         return  # Normal Terraform creation without precreation is still supported.
     metadata = json.loads(run(["az", "group", "show", "-n", group, "-o", "json"]))
-    if metadata.get("tags", {}).get("managed_by") != "odyn-execution-pipeline":
+    tags = metadata.get("tags", {})
+    execution_owned = tags.get("managed_by") == "odyn-execution-pipeline"
+    bootstrap_owned = os.environ.get(
+        "ODYN_INFRA_COMPONENT"
+    ) == "bootstrap" and tags == {
+        "project": "odyn-gateway",
+        "purpose": "terraform-state",
+        "managed_by": "terraform",
+    }
+    if not execution_owned and not bootstrap_owned:
         raise ValueError("Unmanaged existing group requires explicit state recovery")
     if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):
         raise ValueError("Cannot import a nonempty group through bootstrap adoption")
