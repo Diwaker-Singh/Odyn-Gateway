@@ -120,6 +120,89 @@ def failure_category(directory):
     return category
 
 
+def classify_init_failure(content):
+    """Map private Terraform init output to a non-sensitive diagnostic class."""
+    text = content.lower()
+    categories = (
+        (
+            "BACKEND_AUTHENTICATION",
+            (
+                "authenticationfailed",
+                "unauthorized",
+                "forbidden",
+                "status code 403",
+                " 403",
+            ),
+        ),
+        (
+            "NETWORK_OR_PRIVATE_ENDPOINT",
+            (
+                "no such host",
+                "dial tcp",
+                "connection timed out",
+                "context deadline exceeded",
+            ),
+        ),
+        (
+            "BACKEND_STORAGE_ACCESS",
+            (
+                "failed to get existing workspaces",
+                "listing blobs",
+                "storageaccountnotfound",
+                "containernotfound",
+                "failed to retrieve keys",
+            ),
+        ),
+        (
+            "OIDC_CONFIGURATION",
+            (
+                "oidc",
+                "requesting oidc token",
+                "actions_id_token_request_url",
+                "client secret or assertion",
+            ),
+        ),
+        (
+            "PROVIDER_REGISTRY_ACCESS",
+            (
+                "failed to query available provider packages",
+                "could not retrieve the list of available versions",
+                "registry.terraform.io",
+            ),
+        ),
+        (
+            "PROVIDER_CHECKSUM",
+            (
+                "doesn't match any of the checksums",
+                "does not match any of the checksums",
+                "checksum list",
+            ),
+        ),
+        (
+            "PROVIDER_INSTALLATION",
+            (
+                "failed to install provider",
+                "error while installing",
+                "error downloading",
+            ),
+        ),
+        (
+            "BACKEND_CONFIGURATION",
+            (
+                "invalid backend configuration",
+                "failed to get backend",
+                "backend configuration changed",
+                "missing required argument",
+            ),
+        ),
+        ("TERRAFORM_STATE_LOCK", ("error acquiring the state lock", "state lock info")),
+    )
+    for category, markers in categories:
+        if any(marker in text for marker in markers):
+            return category
+    return "TERRAFORM_INIT_OTHER"
+
+
 def save_failure(error):
     """Append a bounded helper failure to the private log for encryption."""
     directory = os.environ.get("ODYN_DELIVERY_DIR")

@@ -78,6 +78,36 @@ class DeliveryTests(unittest.TestCase):
             record["images"]["gateway"]["local_id"],
         )
 
+    def test_init_diagnostics_are_reduced_to_safe_categories(self):
+        cases = (
+            ("Error acquiring the state lock", "TERRAFORM_STATE_LOCK"),
+            (
+                "Failed to get existing workspaces: listing blobs returned 403",
+                "BACKEND_AUTHENTICATION",
+            ),
+            (
+                "Failed to query available provider packages",
+                "PROVIDER_REGISTRY_ACCESS",
+            ),
+            (
+                "provider package checksum doesn't match any of the checksums",
+                "PROVIDER_CHECKSUM",
+            ),
+            ("Error while installing provider", "PROVIDER_INSTALLATION"),
+            ("failed to get backend configuration", "BACKEND_CONFIGURATION"),
+            ("context deadline exceeded", "NETWORK_OR_PRIVATE_ENDPOINT"),
+            ("opaque unclassified text", "TERRAFORM_INIT_OTHER"),
+        )
+        for content, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(MODULE.classify_init_failure(content), expected)
+
+    def test_init_diagnostic_classification_never_returns_raw_log(self):
+        sensitive = "storage account odynprivate123 connection secret=do-not-print"
+        result = MODULE.classify_init_failure(sensitive)
+        self.assertNotIn("odynprivate123", result)
+        self.assertNotIn("do-not-print", result)
+
     def test_destroy_and_replacement_are_rejected(self):
         for actions in (["delete"], ["delete", "create"]):
             with self.assertRaises(ValueError):

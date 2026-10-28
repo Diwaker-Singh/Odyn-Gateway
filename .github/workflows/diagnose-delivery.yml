@@ -1,0 +1,56 @@
+name: Safely classify encrypted delivery diagnostics
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Failed delivery workflow run containing the encrypted plan diagnostics
+        required: true
+        type: string
+      artifact_id:
+        description: Exact encrypted-delivery-diagnostics-plan artifact ID from that run
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install --require-hashes -r app/requirements.lock
+      - name: Download encrypted diagnostics from this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIAGNOSTIC_RUN_ID: ${{ inputs.run_id }}
+          DIAGNOSTIC_ARTIFACT_ID: ${{ inputs.artifact_id }}
+        run: |
+          [[ "$DIAGNOSTIC_RUN_ID" =~ ^[1-9][0-9]{5,14}$ ]]
+          [[ "$DIAGNOSTIC_ARTIFACT_ID" =~ ^[1-9][0-9]{5,14}$ ]]
+          mkdir -m 700 "$RUNNER_TEMP/odyn-diagnostics"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$DIAGNOSTIC_ARTIFACT_ID" > "$RUNNER_TEMP/odyn-diagnostics/metadata.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$DIAGNOSTIC_ARTIFACT_ID/zip" > "$RUNNER_TEMP/odyn-diagnostics/artifact.zip"
+          python - <<'PYCODE'
+          import json, os, zipfile
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'odyn-diagnostics'
+          metadata = json.loads((root / 'metadata.json').read_text())
+          if metadata.get('name') != 'encrypted-delivery-diagnostics-plan' or metadata.get('expired') or str(metadata.get('workflow_run', {}).get('id')) != os.environ['DIAGNOSTIC_RUN_ID']:
+              raise SystemExit('Artifact does not match the selected failed run')
+          with zipfile.ZipFile(root / 'artifact.zip') as archive:
+              entries = [item for item in archive.infolist() if item.filename.endswith('/diagnostics.enc') or item.filename == 'diagnostics.enc']
+              if len(entries) != 1 or entries[0].file_size > 1_000_000:
+                  raise SystemExit('Unexpected diagnostic artifact contents')
+              (root / 'diagnostics.enc').write_bytes(archive.read(entries[0]))
+          PYCODE
+          test -f "$RUNNER_TEMP/odyn-diagnostics/diagnostics.enc"
+      - name: Emit a sanitized diagnosis only
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+        run: python scripts/diagnose-delivery.py "$RUNNER_TEMP/odyn-diagnostics/diagnostics.enc" >> "$GITHUB_STEP_SUMMARY"
