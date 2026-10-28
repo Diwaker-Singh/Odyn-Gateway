@@ -405,7 +405,7 @@ def adopt_bootstrap_group(directory):
     root defines the same project/purpose/owner tuple and may predate this
     execution pipeline. No other Terraform-tagged group is adopted.
     """
-    context()
+    current = context()
     root = infrastructure_root(directory)
     address = {
         "bootstrap": "azurerm_resource_group.state",
@@ -439,7 +439,14 @@ def adopt_bootstrap_group(directory):
     )["exists"]
     if not isinstance(state_exists, bool):
         raise TypeError("Backend existence was not established")
-    if state_exists and address in run([*base, "state", "list"]).splitlines():
+    state_addresses = (
+        set(run([*base, "state", "list"]).splitlines()) if state_exists else set()
+    )
+    deployment_address = "azurerm_resource_group_template_deployment.container"
+    bootstrap = os.environ.get("ODYN_INFRA_COMPONENT", "application") == "bootstrap"
+    if address in state_addresses and (
+        not bootstrap or deployment_address in state_addresses
+    ):
         return
     group = os.environ["AZURE_RESOURCE_GROUP"]
     if json.loads(run(["az", "group", "exists", "-n", group, "-o", "json"])) is False:
@@ -456,19 +463,80 @@ def adopt_bootstrap_group(directory):
     }
     if not execution_owned and not bootstrap_owned:
         raise ValueError("Unmanaged existing group requires explicit state recovery")
-    if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):
-        raise ValueError("Cannot import a nonempty group through bootstrap adoption")
-    run(
-        [
-            *base,
-            "import",
-            "-input=false",
-            "-lock-timeout=60s",
-            f"-var-file={directory / 'application.tfvars.json'}",
-            address,
-            metadata["id"],
-        ]
-    )
+    if address not in state_addresses:
+        if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):
+            raise ValueError(
+                "Cannot import a nonempty group through bootstrap adoption"
+            )
+        run(
+            [
+                *base,
+                "import",
+                "-input=false",
+                "-lock-timeout=60s",
+                f"-var-file={directory / 'application.tfvars.json'}",
+                address,
+                metadata["id"],
+            ]
+        )
+
+    # Azure retains resource-group deployment history when the target resources
+    # have been removed. Adopt only the bootstrap's fixed deployment name in its
+    # explicitly owned group; the subsequent Terraform plan remains the source
+    # of truth and will expose any configuration drift before apply.
+    if bootstrap and deployment_address not in state_addresses:
+        deployment_exists = json.loads(
+            run(
+                [
+                    "az",
+                    "deployment",
+                    "group",
+                    "exists",
+                    "--resource-group",
+                    group,
+                    "--name",
+                    "state-container",
+                    "-o",
+                    "json",
+                ]
+            )
+        )
+        if not isinstance(deployment_exists, bool):
+            raise TypeError("Bootstrap deployment existence was not established")
+        if deployment_exists:
+            provisioning_state = run(
+                [
+                    "az",
+                    "deployment",
+                    "group",
+                    "show",
+                    "--resource-group",
+                    group,
+                    "--name",
+                    "state-container",
+                    "--query",
+                    "properties.provisioningState",
+                    "-o",
+                    "tsv",
+                ]
+            )
+            if provisioning_state != "Succeeded":
+                raise ValueError("Existing bootstrap deployment is not successful")
+            deployment_id = (
+                f"/subscriptions/{current['subscription']}/resourceGroups/{group}"
+                "/providers/Microsoft.Resources/deployments/state-container"
+            )
+            run(
+                [
+                    *base,
+                    "import",
+                    "-input=false",
+                    "-lock-timeout=60s",
+                    f"-var-file={directory / 'application.tfvars.json'}",
+                    deployment_address,
+                    deployment_id,
+                ]
+            )
 
 
 def seal(directory):

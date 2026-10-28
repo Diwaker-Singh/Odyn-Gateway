@@ -348,6 +348,7 @@ class GroupAdoptionTests(unittest.TestCase):
                 responses.append(json.dumps(resources))
             if expected:
                 responses.append("")
+                responses.append("false")
             with (
                 tempfile.TemporaryDirectory() as temporary,
                 patch.dict(
@@ -369,7 +370,14 @@ class GroupAdoptionTests(unittest.TestCase):
             ):
                 if expected:
                     module.adopt_bootstrap_group(Path(temporary))
-                    self.assertIn("import", run.call_args.args[0])
+                    self.assertTrue(
+                        any(
+                            call.args[0][0] == "terraform"
+                            and call.args[0][1].startswith("-chdir=")
+                            and "import" in call.args[0]
+                            for call in run.call_args_list
+                        )
+                    )
                 else:
                     with self.assertRaises(ValueError):
                         module.adopt_bootstrap_group(Path(temporary))
@@ -396,11 +404,108 @@ class GroupAdoptionTests(unittest.TestCase):
             patch.object(
                 self.delivery,
                 "run",
-                side_effect=['{"exists": true}', "azurerm_resource_group.state"],
+                side_effect=[
+                    '{"exists": true}',
+                    "azurerm_resource_group.state\nazurerm_resource_group_template_deployment.container",
+                ],
             ) as run,
         ):
             self.delivery.adopt_bootstrap_group(Path("/tmp/private"))
         self.assertEqual(run.call_count, 2)
+
+    def test_existing_bootstrap_deployment_history_is_imported(self):
+        group_tags = {
+            "project": "odyn-gateway",
+            "purpose": "terraform-state",
+            "managed_by": "terraform",
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AZURE_RESOURCE_GROUP": "rg-odyn-gateway-tfstate",
+                    "AZURE_SUBSCRIPTION_ID": "subscription-id",
+                    "AZURE_TENANT_ID": "tenant-id",
+                    "AZURE_CLIENT_ID": "client-id",
+                    "GITHUB_SHA": "source-sha",
+                    "ODYN_INFRA_COMPONENT": "bootstrap",
+                    "TF_BACKEND_JSON": json.dumps(
+                        {
+                            "storage_account_name": "state",
+                            "container_name": "state",
+                            "key": "bootstrap.tfstate",
+                        }
+                    ),
+                },
+            ),
+            patch.object(
+                self.delivery,
+                "context",
+                return_value={"subscription": "subscription-id"},
+            ),
+            patch.object(
+                self.delivery,
+                "run",
+                side_effect=[
+                    '{"exists": true}',
+                    "azurerm_resource_group.state",
+                    "true",
+                    json.dumps({"id": "/destination", "tags": group_tags}),
+                    "true",
+                    "Succeeded",
+                    "",
+                ],
+            ) as run,
+        ):
+            self.delivery.adopt_bootstrap_group(Path("/tmp/private"))
+        import_command = run.call_args.args[0]
+        self.assertIn("import", import_command)
+        self.assertEqual(
+            import_command[-1],
+            "/subscriptions/subscription-id/resourceGroups/"
+            "rg-odyn-gateway-tfstate/providers/Microsoft.Resources/deployments/state-container",
+        )
+
+    def test_failed_bootstrap_deployment_history_is_not_adopted(self):
+        group_tags = {
+            "project": "odyn-gateway",
+            "purpose": "terraform-state",
+            "managed_by": "terraform",
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AZURE_RESOURCE_GROUP": "rg-odyn-gateway-tfstate",
+                    "ODYN_INFRA_COMPONENT": "bootstrap",
+                    "TF_BACKEND_JSON": json.dumps(
+                        {
+                            "storage_account_name": "state",
+                            "container_name": "state",
+                            "key": "bootstrap.tfstate",
+                        }
+                    ),
+                },
+            ),
+            patch.object(
+                self.delivery, "context", return_value={"subscription": "sub"}
+            ),
+            patch.object(
+                self.delivery,
+                "run",
+                side_effect=[
+                    '{"exists": true}',
+                    "azurerm_resource_group.state",
+                    "true",
+                    json.dumps({"id": "/destination", "tags": group_tags}),
+                    "true",
+                    "Failed",
+                ],
+            ) as run,
+            self.assertRaisesRegex(ValueError, "not successful"),
+        ):
+            self.delivery.adopt_bootstrap_group(Path("/tmp/private"))
+        self.assertFalse(any("import" in call.args[0] for call in run.call_args_list))
 
     def test_backend_unknown_is_not_treated_as_empty(self):
         env = {
