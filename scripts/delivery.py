@@ -70,6 +70,44 @@ def diagnostics(directory):
     target.chmod(0o600)
 
 
+def failure_category(directory):
+    """Report a low-risk failure category without exposing Terraform output."""
+    content = "\n".join(
+        path.read_text(errors="replace")
+        for path in (directory / "plan.log", directory / "delivery-error.log")
+        if path.is_file() and not path.is_symlink()
+    ).lower()
+    categories = (
+        ("AZURE_AUTHORIZATION", ("authorizationfailed", "does not have authorization")),
+        ("AZURE_QUOTA", ("quotaexceeded", "overquota", "quota exceeded")),
+        ("AZURE_POLICY", ("requestdisallowedbypolicy", "disallowedbyazurepolicy")),
+        (
+            "AZURE_PROVIDER_REGISTRATION",
+            ("is not registered", "missingregistrationforlocation"),
+        ),
+        (
+            "AZURE_RESOURCE_GROUP",
+            ("resourcegroupnotfound", "resource group was not found"),
+        ),
+        (
+            "AZURE_RESOURCE_CONFLICT",
+            ("resourcealreadyexists", "resource already exists"),
+        ),
+        ("TERRAFORM_STATE_LOCK", ("error acquiring the state lock", "state lock info")),
+        (
+            "NETWORK_OR_PRIVATE_ENDPOINT",
+            ("no such host", "dial tcp", "connection timed out"),
+        ),
+    )
+    for category, markers in categories:
+        if any(marker in content for marker in markers):
+            print(f"Safe failure category: {category}")
+            return category
+    category = "TERRAFORM_PLAN_FAILED" if content else "TERRAFORM_FAILURE_UNCLASSIFIED"
+    print(f"Safe failure category: {category}")
+    return category
+
+
 def save_failure(error):
     """Append a bounded helper failure to the private log for encryption."""
     directory = os.environ.get("ODYN_DELIVERY_DIR")
@@ -755,6 +793,7 @@ def main():
             "publish",
             "record-deployment",
             "diagnostics",
+            "failure-category",
         ),
     )
     parser.add_argument("--directory", type=Path, required=True)
@@ -763,6 +802,8 @@ def main():
     os.umask(0o077)
     if args.action == "diagnostics":
         diagnostics(args.directory)
+    elif args.action == "failure-category":
+        failure_category(args.directory)
     elif args.action == "prepare-infrastructure":
         prepare_infrastructure(args.directory)
     elif args.action == "prepare":

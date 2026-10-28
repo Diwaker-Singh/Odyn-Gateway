@@ -593,6 +593,27 @@ class DiagnosticTests(unittest.TestCase):
             )
             self.assertIn(b"adoption precondition failed", payload)
 
+    def test_failure_category_reports_only_safe_allowlisted_codes(self):
+        cases = (
+            ("AuthorizationFailed: PRIVATE_RESOURCE_ID", "AZURE_AUTHORIZATION"),
+            ("QuotaExceeded: PRIVATE_SUBSCRIPTION", "AZURE_QUOTA"),
+            ("RequestDisallowedByPolicy", "AZURE_POLICY"),
+            ("Error acquiring the state lock", "TERRAFORM_STATE_LOCK"),
+            ("arbitrary private diagnostic", "TERRAFORM_PLAN_FAILED"),
+            ("", "TERRAFORM_FAILURE_UNCLASSIFIED"),
+        )
+        for diagnostic, expected in cases:
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                if diagnostic:
+                    (directory / "plan.log").write_text(diagnostic)
+                with patch("builtins.print") as output:
+                    actual = MODULE.failure_category(directory)
+                self.assertEqual(actual, expected)
+                rendered = " ".join(str(call.args[0]) for call in output.call_args_list)
+                self.assertIn(expected, rendered)
+                self.assertNotIn("PRIVATE_", rendered)
+
     def test_foundation_workflow_encrypts_failure_logs_before_cleanup(self):
         workflow = (ROOT / ".github/workflows/infrastructure.yml").read_text()
         self.assertEqual(
