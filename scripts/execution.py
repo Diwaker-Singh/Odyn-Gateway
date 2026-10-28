@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OWNER = "odyn-execution-pipeline"
+RUNNER_REGISTRATION_TOKEN_COUNT = 12
 ROLES = {
     "Contributor": "b24988ac-6180-42a0-ab88-20f7382dd24c",
     "Reader": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
@@ -320,7 +321,7 @@ def network_links(value, remove=False):
 
 
 def protected_start(value, token, deadline, stopping=False):
-    """Do not place the registration token in cloud-init or command arguments."""
+    """Pass short-lived runner tokens only through protected Run Command input."""
     source = (
         ROOT / "scripts" / ("execution-stop.sh" if stopping else "execution-start.sh")
     ).read_text()
@@ -337,14 +338,11 @@ def protected_start(value, token, deadline, stopping=False):
                     "value": "odyn-" + value["group"].rsplit("-", 1)[1],
                 },
             ],
-            "protectedParameters": [
-                {
-                    "name": "ODYN_REMOVAL_TOKEN"
-                    if stopping
-                    else "ODYN_REGISTRATION_TOKEN",
-                    "value": token,
-                }
-            ],
+            "protectedParameters": (
+                [{"name": "ODYN_REMOVAL_TOKEN", "value": token}]
+                if stopping
+                else [{"name": "ODYN_REGISTRATION_TOKENS", "value": token}]
+            ),
         },
     }
     command_name = "retire" if stopping else "register"
@@ -354,6 +352,23 @@ def protected_start(value, token, deadline, stopping=False):
         path.write_text(json.dumps(body))
         path.chmod(0o600)
         az("rest", "--method", "put", "--url", resource, "--body", "@" + str(path))
+
+
+def registration_tokens():
+    """Mint a bounded pool while GitHub App authority stays on the host runner."""
+    if os.environ.get("GH_TOKEN"):
+        endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runners/registration-token"
+        tokens = []
+        for _ in range(RUNNER_REGISTRATION_TOKEN_COUNT):
+            tokens.append(
+                json.loads(run(["gh", "api", "--method", "POST", endpoint]))["token"]
+            )
+        return tokens
+    token = os.environ.get("RUNNER_REGISTRATION_TOKEN")
+    if token:
+        # Token-only probes register a single runner and do not orchestrate jobs.
+        return [token]
+    raise ValueError("A short-lived GitHub App token is required to register runners")
 
 
 def start(value):
@@ -509,20 +524,9 @@ def start(value):
     network_links(value)
     # Managed Run Command may start before cloud-init has installed the runner;
     # its script waits for the ready sentinel with a bounded timeout.
-    token = os.environ.get("RUNNER_REGISTRATION_TOKEN")
-    if not token:
-        token = json.loads(
-            run(
-                [
-                    "gh",
-                    "api",
-                    "--method",
-                    "POST",
-                    f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runners/registration-token",
-                ]
-            )
-        )["token"]
-    protected_start(value, token, deadline)
+    # Every ephemeral runner consumes a fresh token. Keep the broader App token
+    # on this hosted runner; only the bounded token pool crosses protected input.
+    protected_start(value, json.dumps(registration_tokens()), deadline)
     name = "odyn-" + group.rsplit("-", 1)[1]
     if not os.environ.get("GH_TOKEN"):
         print(

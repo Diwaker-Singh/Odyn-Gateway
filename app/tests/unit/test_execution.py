@@ -115,7 +115,8 @@ class ExecutionTests(unittest.TestCase):
             body = json.loads(path.read_text())
             self.assertNotIn("test-secret", body["properties"]["source"]["script"])
             self.assertEqual(
-                body["properties"]["protectedParameters"][0]["value"], "test-secret"
+                json.loads(body["properties"]["protectedParameters"][0]["value"]),
+                ["test-secret"],
             )
             self.assertNotIn(
                 "test-secret", json.dumps(body["properties"]["parameters"])
@@ -125,7 +126,34 @@ class ExecutionTests(unittest.TestCase):
             patch.dict(os.environ, self.environment()),
             patch.object(M, "az", side_effect=inspect),
         ):
-            M.protected_start(self.config(), "test-secret", 123)
+            M.protected_start(self.config(), json.dumps(["test-secret"]), 123)
+
+    def test_lifecycle_mints_bounded_fresh_runner_tokens_on_host(self):
+        calls = []
+
+        def mint(args):
+            calls.append(args)
+            return f'{{"token":"runner-token-{len(calls)}"}}'
+
+        with (
+            patch.dict(
+                os.environ,
+                self.environment() | {"GH_TOKEN": "app-installation-token"},
+            ),
+            patch.object(M, "run", side_effect=mint),
+        ):
+            tokens = M.registration_tokens()
+        self.assertEqual(len(tokens), M.RUNNER_REGISTRATION_TOKEN_COUNT)
+        self.assertEqual(len(set(tokens)), len(tokens))
+        self.assertTrue(all(args[0:3] == ["gh", "api", "--method"] for args in calls))
+
+    def test_probe_can_use_one_explicit_registration_token(self):
+        with patch.dict(
+            os.environ,
+            self.environment()
+            | {"GH_TOKEN": "", "RUNNER_REGISTRATION_TOKEN": "probe-token"},
+        ):
+            self.assertEqual(M.registration_tokens(), ["probe-token"])
 
     def test_install_contains_no_registration_token(self):
         source = (ROOT / "scripts/execution-install.sh").read_text()
@@ -137,6 +165,12 @@ class ExecutionTests(unittest.TestCase):
         source = (ROOT / "scripts/execution-start.sh").read_text()
         self.assertIn("env -i", source)
         self.assertIn("HOME=/home/odynrunner", source)
+        self.assertIn("ODYN_REGISTRATION_TOKENS", source)
+        self.assertIn("unset ODYN_REGISTRATION_TOKENS", source)
+        self.assertIn("--ephemeral", source)
+        self.assertIn("registration_token", source)
+        self.assertNotIn("ODYN_GITHUB_APP_TOKEN", source)
+        self.assertIn("runuser -u odynrunner -- env -i", source)
         self.assertNotIn("--preserve-environment", source)
 
     def test_restore_groups_is_scoped_and_deterministic(self):

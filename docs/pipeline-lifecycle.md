@@ -117,9 +117,16 @@ removed after testing; it is not a persistent production bootstrap identity.
 
 For unattended runner registration, configure `RUNNER_APP_ID` and secret
 `RUNNER_APP_PRIVATE_KEY` for a GitHub App installed only on this repository with
-Administration: write. The workflow mints a short-lived installation token. Registration tokens also
-expire; finish protected gates promptly and retire/restart an expired lease
-after any active apply finishes. Never inject the App private key into the VM.
+Administration: write. The workflow mints a short-lived installation token.
+The controller uses it on the GitHub-hosted runner to mint a bounded pool of 12
+short-lived registration tokens. Azure Run Command passes the pool through its
+protected-parameter channel; a root-owned loop gives one token to each fresh
+ephemeral runner configuration, then launches the runner under the unprivileged
+`odynrunner` account with a clean environment. The GitHub App installation token
+never enters the VM. This supports dependent plan/apply jobs and later workflow
+stages within the configured runner lease. If the run exceeds the token pool or
+token validity window, it stops safely and the lifecycle must be restarted with
+a fresh lease. Never inject the App private key into the VM.
 The bounded integration test used expiring secrets
 `RUNNER_REGISTRATION_TOKEN` and `RUNNER_REMOVAL_TOKEN`; never store a general
 GitHub CLI credential. Azure receives registration/removal tokens through
