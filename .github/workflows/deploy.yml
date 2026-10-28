@@ -190,13 +190,22 @@ jobs:
         run: |
           umask 077
           export ODYN_DELIVERY_DIR="$RUNNER_TEMP/odyn-delivery-$GITHUB_RUN_ID"
-          terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
-          python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"
+          if ! terraform -chdir=infra/envs/dev/azure init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1; then
+            python scripts/delivery.py failure-category --directory "$ODYN_DELIVERY_DIR"
+            exit 1
+          fi
+          if ! python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"; then
+            python scripts/delivery.py failure-category --directory "$ODYN_DELIVERY_DIR"
+            exit 1
+          fi
           if ! terraform -chdir=infra/envs/dev/azure plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1; then
             python scripts/delivery.py failure-category --directory "$ODYN_DELIVERY_DIR"
             exit 1
           fi
-          python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"
+          if ! python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"; then
+            python scripts/delivery.py failure-category --directory "$ODYN_DELIVERY_DIR"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: encrypted-saved-plan

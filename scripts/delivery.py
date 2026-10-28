@@ -72,11 +72,12 @@ def diagnostics(directory):
 
 def failure_category(directory):
     """Report a low-risk failure category without exposing Terraform output."""
-    content = "\n".join(
-        path.read_text(errors="replace")
-        for path in (directory / "plan.log", directory / "delivery-error.log")
-        if path.is_file() and not path.is_symlink()
-    ).lower()
+    logs = {
+        name: (directory / name).read_text(errors="replace").lower()
+        for name in ("init.log", "plan.log", "delivery-error.log")
+        if (directory / name).is_file() and not (directory / name).is_symlink()
+    }
+    content = "\n".join(logs.values())
     categories = (
         ("AZURE_AUTHORIZATION", ("authorizationfailed", "does not have authorization")),
         ("AZURE_QUOTA", ("quotaexceeded", "overquota", "quota exceeded")),
@@ -103,7 +104,18 @@ def failure_category(directory):
         if any(marker in content for marker in markers):
             print(f"Safe failure category: {category}")
             return category
-    category = "TERRAFORM_PLAN_FAILED" if content else "TERRAFORM_FAILURE_UNCLASSIFIED"
+    category = next(
+        (
+            name
+            for filename, name in (
+                ("plan.log", "TERRAFORM_PLAN_FAILED"),
+                ("init.log", "TERRAFORM_INIT_FAILED"),
+                ("delivery-error.log", "DELIVERY_HELPER_FAILED"),
+            )
+            if logs.get(filename)
+        ),
+        "TERRAFORM_FAILURE_UNCLASSIFIED",
+    )
     print(f"Safe failure category: {category}")
     return category
 

@@ -614,6 +614,35 @@ class DiagnosticTests(unittest.TestCase):
                 self.assertIn(expected, rendered)
                 self.assertNotIn("PRIVATE_", rendered)
 
+    def test_failure_category_classifies_init_and_adoption_errors(self):
+        cases = (
+            (
+                "init.log",
+                "AuthorizationFailed: PRIVATE_RESOURCE_ID",
+                "AZURE_AUTHORIZATION",
+            ),
+            (
+                "delivery-error.log",
+                "Error acquiring the state lock",
+                "TERRAFORM_STATE_LOCK",
+            ),
+            (
+                "delivery-error.log",
+                "private adoption detail",
+                "DELIVERY_HELPER_FAILED",
+            ),
+        )
+        for filename, diagnostic, expected in cases:
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                (directory / filename).write_text(diagnostic)
+                with patch("builtins.print") as output:
+                    actual = MODULE.failure_category(directory)
+                self.assertEqual(actual, expected)
+                rendered = " ".join(str(call.args[0]) for call in output.call_args_list)
+                self.assertIn(expected, rendered)
+                self.assertNotIn("PRIVATE_", rendered)
+
     def test_foundation_workflow_encrypts_failure_logs_before_cleanup(self):
         workflow = (ROOT / ".github/workflows/infrastructure.yml").read_text()
         self.assertEqual(
