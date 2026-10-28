@@ -348,7 +348,7 @@ class GroupAdoptionTests(unittest.TestCase):
                 responses.append(json.dumps(resources))
             if expected:
                 responses.append("")
-                responses.append("false")
+                responses.append("")
             with (
                 tempfile.TemporaryDirectory() as temporary,
                 patch.dict(
@@ -451,7 +451,7 @@ class GroupAdoptionTests(unittest.TestCase):
                     "azurerm_resource_group.state",
                     "true",
                     json.dumps({"id": "/destination", "tags": group_tags}),
-                    "true",
+                    "state-container",
                     "Succeeded",
                     "",
                 ],
@@ -498,7 +498,7 @@ class GroupAdoptionTests(unittest.TestCase):
                     "azurerm_resource_group.state",
                     "true",
                     json.dumps({"id": "/destination", "tags": group_tags}),
-                    "true",
+                    "state-container",
                     "Failed",
                 ],
             ) as run,

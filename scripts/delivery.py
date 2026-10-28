@@ -485,25 +485,23 @@ def adopt_bootstrap_group(directory):
     # explicitly owned group; the subsequent Terraform plan remains the source
     # of truth and will expose any configuration drift before apply.
     if bootstrap and deployment_address not in state_addresses:
-        deployment_exists = json.loads(
-            run(
-                [
-                    "az",
-                    "deployment",
-                    "group",
-                    "exists",
-                    "--resource-group",
-                    group,
-                    "--name",
-                    "state-container",
-                    "-o",
-                    "json",
-                ]
-            )
+        deployment_name = run(
+            [
+                "az",
+                "deployment",
+                "group",
+                "list",
+                "--resource-group",
+                group,
+                "--query",
+                "[?name=='state-container'].name | [0]",
+                "-o",
+                "tsv",
+            ]
         )
-        if not isinstance(deployment_exists, bool):
-            raise TypeError("Bootstrap deployment existence was not established")
-        if deployment_exists:
+        if deployment_name:
+            if deployment_name != "state-container":
+                raise ValueError("Unexpected bootstrap deployment was returned")
             provisioning_state = run(
                 [
                     "az",
