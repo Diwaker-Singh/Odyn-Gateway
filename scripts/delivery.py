@@ -213,18 +213,21 @@ def init_failure_signals(content):
         ),
         ("state_container_missing", ("containernotfound", "container was not found")),
         (
-            "storage_authorization_denied",
-            (
-                "authorizationpermissionmismatch",
-                "authorizationfailure",
-                "status code 403",
-                " 403",
-                "forbidden",
-            ),
+            "storage_permission_mismatch",
+            ("authorizationpermissionmismatch",),
         ),
         (
+            "storage_network_authorization_failure",
+            ("authorizationfailure", "ipforbidden", "networkaclsvalidationfailure"),
+        ),
+        (
+            "storage_authentication_failed",
+            ("authenticationfailed", "failed to authenticate the request"),
+        ),
+        ("storage_http_403", ("status code 403", " 403", "forbidden")),
+        (
             "network_acl_denied",
-            ("ipforbidden", "networkaclsvalidationfailure", "network access is denied"),
+            ("network access is denied",),
         ),
         ("blob_listing_failed", ("listing blobs", "failed to list blobs")),
         ("workspace_discovery_failed", ("failed to get existing workspaces",)),

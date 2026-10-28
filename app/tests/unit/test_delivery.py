@@ -114,7 +114,7 @@ class DeliveryTests(unittest.TestCase):
                 "Failed to get existing workspaces: listing blobs returned 403"
             ),
             [
-                "storage_authorization_denied",
+                "storage_http_403",
                 "blob_listing_failed",
                 "workspace_discovery_failed",
             ],
