@@ -454,6 +454,21 @@ def adopt_bootstrap_group(directory):
     metadata = json.loads(run(["az", "group", "show", "-n", group, "-o", "json"]))
     tags = metadata.get("tags", {})
     execution_owned = tags.get("managed_by") == "odyn-execution-pipeline"
+    registry_owned = False
+    if os.environ.get("ODYN_INFRA_COMPONENT") == "registry":
+        variables = json.loads((directory / "application.tfvars.json").read_text())
+        environment = variables.get("environment")
+        registry_group = f"rg-odyn-gateway-artifacts-{environment}"
+        registry_owned = (
+            isinstance(environment, str)
+            and group == registry_group
+            and tags
+            == {
+                "project": "odyn-gateway",
+                "environment": environment,
+                "managed_by": "terraform",
+            }
+        )
     bootstrap_owned = os.environ.get(
         "ODYN_INFRA_COMPONENT"
     ) == "bootstrap" and tags == {
@@ -461,7 +476,7 @@ def adopt_bootstrap_group(directory):
         "purpose": "terraform-state",
         "managed_by": "terraform",
     }
-    if not execution_owned and not bootstrap_owned:
+    if not execution_owned and not bootstrap_owned and not registry_owned:
         raise ValueError("Unmanaged existing group requires explicit state recovery")
     if address not in state_addresses:
         if json.loads(run(["az", "resource", "list", "-g", group, "-o", "json"])):

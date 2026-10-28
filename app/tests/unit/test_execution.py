@@ -385,6 +385,67 @@ class GroupAdoptionTests(unittest.TestCase):
                         any("import" in call.args[0] for call in run.call_args_list)
                     )
 
+    def test_registry_adopts_only_exact_tagged_empty_project_group(self):
+        module = self.delivery
+        owned_tags = {
+            "project": "odyn-gateway",
+            "environment": "demo10",
+            "managed_by": "terraform",
+        }
+        for tags, resources, expected in (
+            (owned_tags, [], True),
+            ({**owned_tags, "owner": "someone-else"}, [], False),
+            ({**owned_tags, "environment": "other"}, [], False),
+            (owned_tags, [{"id": "existing-registry"}], False),
+        ):
+            with (
+                self.subTest(tags=tags, resources=resources),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                Path(temporary, "application.tfvars.json").write_text(
+                    json.dumps({"environment": "demo10"})
+                )
+                responses = [
+                    '{"exists": false}',
+                    "true",
+                    json.dumps({"id": "/destination", "tags": tags}),
+                ]
+                if expected or resources:
+                    responses.append(json.dumps(resources))
+                if expected:
+                    responses.append("")
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "AZURE_RESOURCE_GROUP": (
+                                "rg-odyn-gateway-artifacts-demo10"
+                            ),
+                            "ODYN_INFRA_COMPONENT": "registry",
+                            "TF_BACKEND_JSON": json.dumps(
+                                {
+                                    "storage_account_name": "state",
+                                    "container_name": "management",
+                                    "key": "registry.tfstate",
+                                }
+                            ),
+                        },
+                    ),
+                    patch.object(module, "context"),
+                    patch.object(module, "run", side_effect=responses) as run,
+                ):
+                    if expected:
+                        module.adopt_bootstrap_group(Path(temporary))
+                        self.assertTrue(
+                            any("import" in call.args[0] for call in run.call_args_list)
+                        )
+                    else:
+                        with self.assertRaises(ValueError):
+                            module.adopt_bootstrap_group(Path(temporary))
+                        self.assertFalse(
+                            any("import" in call.args[0] for call in run.call_args_list)
+                        )
+
     def test_existing_state_address_is_never_imported_again(self):
         with (
             patch.dict(
