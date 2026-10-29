@@ -18,6 +18,44 @@ SPEC.loader.exec_module(M)
 
 
 class FoundationRepairTests(unittest.TestCase):
+    def test_repair_gate_allows_only_the_proven_missing_child(self):
+        template = {
+            "resources": [
+                {
+                    "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+                    "name": "statetest/default/tfstate",
+                }
+            ]
+        }
+        value = {"name": "state-container", "template_content": json.dumps(template)}
+        plan = {
+            "resource_changes": [
+                {
+                    "type": "azurerm_resource_group",
+                    "address": "group",
+                    "change": {"actions": ["no-op"], "after": {"name": "dedicated"}},
+                },
+                {
+                    "type": "azurerm_resource_group_template_deployment",
+                    "address": "azurerm_resource_group_template_deployment.container",
+                    "change": {
+                        "actions": ["delete", "create"],
+                        "before": value,
+                        "after": value,
+                    },
+                },
+            ]
+        }
+        with patch.dict(os.environ, {"ODYN_INFRA_COMPONENT": "bootstrap"}):
+            M.plan_summary(plan, "dedicated", "statetest")
+            for account in (None, "anotheraccount"):
+                with self.subTest(account=account), self.assertRaises(ValueError):
+                    M.plan_summary(plan, "dedicated", account)
+            template["resources"].append({"type": "Microsoft.Storage/storageAccounts"})
+            value["template_content"] = json.dumps(template)
+            with self.assertRaises(ValueError):
+                M.plan_summary(plan, "dedicated", "statetest")
+
     def plan(self, responses, component="bootstrap"):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

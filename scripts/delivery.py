@@ -274,7 +274,7 @@ def validate_release(record, source_sha, registry):
     return record
 
 
-def plan_summary(plan, resource_group):
+def plan_summary(plan, resource_group, container_repair_account=None):
     if plan.get("errored"):
         raise ValueError("Plan is not applyable")
     if any(c.get("status") != "pass" for c in plan.get("checks", [])):
@@ -294,7 +294,33 @@ def plan_summary(plan, resource_group):
     summary = []
     for change in changes:
         actions = change["change"]["actions"]
-        if "delete" in actions:
+        container_repair = False
+        if (
+            container_repair_account
+            and os.environ.get("ODYN_INFRA_COMPONENT") == "bootstrap"
+            and change["address"]
+            == "azurerm_resource_group_template_deployment.container"
+            and actions == ["delete", "create"]
+        ):
+            # Only recreate this ARM record after authenticated inventory proved
+            # its sole child container absent. Never relax other deletion gates.
+            container_repair = True
+            for value in (
+                change["change"].get("before"),
+                change["change"].get("after"),
+            ):
+                value = value or {}
+                template = json.loads(value.get("template_content") or "{}")
+                resources = template.get("resources", [])
+                container_repair &= (
+                    value.get("name") == "state-container"
+                    and len(resources) == 1
+                    and resources[0].get("type")
+                    == "Microsoft.Storage/storageAccounts/blobServices/containers"
+                    and resources[0].get("name")
+                    == f"{container_repair_account}/default/tfstate"
+                )
+        if "delete" in actions and not container_repair:
             raise ValueError(
                 "Deletion/replacement requires the local operator workflow"
             )
@@ -776,6 +802,9 @@ def plan_infrastructure(directory):
                 if not isinstance(containers, list):
                     raise TypeError("Container inventory was not established")
                 if not any(item["name"] == "tfstate" for item in containers):
+                    (directory / "state-container-repair.json").write_text(
+                        json.dumps({"context": current, "account": account})
+                    )
                     options.append(
                         "-replace=azurerm_resource_group_template_deployment.container"
                     )
@@ -809,11 +838,22 @@ def seal(directory):
     )
     if os.environ.get("ROLLBACK_DEPLOYMENT_RUN_ID"):
         rollback_plan(rendered)
-    receipt = context() | {
+    current = context()
+    repair_account = None
+    repair_path = directory / "state-container-repair.json"
+    if repair_path.exists():
+        proof = json.loads(repair_path.read_text())
+        if proof.get("context") != current:
+            raise ValueError("State container repair context changed")
+        repair_account = proof["account"]
+    receipt = current | {
         "schema": 1,
         "created": int(time.time()),
         "plan_sha256": sha256(plan.read_bytes()),
-        "changes": plan_summary(rendered, os.environ["AZURE_RESOURCE_GROUP"]),
+        "changes": plan_summary(
+            rendered, os.environ["AZURE_RESOURCE_GROUP"], repair_account
+        ),
+        "state_container_repair": repair_account,
     }
     bundle = json.dumps(
         {
