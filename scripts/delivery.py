@@ -741,6 +741,59 @@ def adopt_bootstrap_group(directory):
             )
 
 
+def plan_infrastructure(directory):
+    """Reconcile the actual container, not only ARM deployment history.
+
+    Azure retains a successful template-deployment record after its child
+    resources are removed. Force only that deployment to run again when ARM
+    confirms its state container is absent; access errors must fail closed.
+    """
+    current = context()
+    component = os.environ["ODYN_INFRA_COMPONENT"]
+    if component not in ("bootstrap", "registry"):
+        raise ValueError("Expected a foundation component")
+    options = []
+    if component == "bootstrap":
+        variables = json.loads((directory / "application.tfvars.json").read_text())
+        group = os.environ["AZURE_RESOURCE_GROUP"]
+        account = variables["storage_account_name"]
+        if not re.fullmatch(r"[a-z0-9]{3,24}", account):
+            raise ValueError("Invalid state storage account")
+        if json.loads(run(["az", "group", "exists", "-n", group, "-o", "json"])):
+            accounts = json.loads(
+                run(["az", "storage", "account", "list", "-g", group, "-o", "json"])
+            )
+            if any(item["name"] == account for item in accounts):
+                url = (
+                    "https://management.azure.com/subscriptions/"
+                    f"{current['subscription']}/resourceGroups/{group}/providers/"
+                    f"Microsoft.Storage/storageAccounts/{account}/blobServices/"
+                    "default/containers?api-version=2023-05-01"
+                )
+                containers = json.loads(
+                    run(["az", "rest", "--method", "get", "--url", url, "-o", "json"])
+                )["value"]
+                if not isinstance(containers, list):
+                    raise TypeError("Container inventory was not established")
+                if not any(item["name"] == "tfstate" for item in containers):
+                    options.append(
+                        "-replace=azurerm_resource_group_template_deployment.container"
+                    )
+    output = run(
+        [
+            "terraform",
+            f"-chdir={infrastructure_root(directory)}",
+            "plan",
+            "-input=false",
+            "-lock-timeout=60s",
+            f"-var-file={directory / 'application.tfvars.json'}",
+            f"-out={directory / 'application.tfplan'}",
+            *options,
+        ]
+    )
+    (directory / "plan.log").write_text(output)
+
+
 def seal(directory):
     plan = directory / "application.tfplan"
     rendered = json.loads(
@@ -915,6 +968,7 @@ def main():
         choices=(
             "prepare",
             "prepare-infrastructure",
+            "plan-infrastructure",
             "adopt-bootstrap-group",
             "seal",
             "unseal",
@@ -934,6 +988,8 @@ def main():
         failure_category(args.directory)
     elif args.action == "prepare-infrastructure":
         prepare_infrastructure(args.directory)
+    elif args.action == "plan-infrastructure":
+        plan_infrastructure(args.directory)
     elif args.action == "prepare":
         prepare(args.directory, args.release)
     elif args.action == "adopt-bootstrap-group":

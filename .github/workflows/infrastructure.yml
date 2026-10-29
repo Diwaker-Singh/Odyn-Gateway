@@ -95,7 +95,7 @@ jobs:
           python scripts/delivery.py prepare-infrastructure --directory "$ODYN_DELIVERY_DIR"
           terraform -chdir="$ODYN_DELIVERY_DIR/root" init -input=false -lockfile=readonly -backend-config="$ODYN_DELIVERY_DIR/backend.json" > "$ODYN_DELIVERY_DIR/init.log" 2>&1
           python scripts/delivery.py adopt-bootstrap-group --directory "$ODYN_DELIVERY_DIR"
-          terraform -chdir="$ODYN_DELIVERY_DIR/root" plan -input=false -lock-timeout=60s -var-file="$ODYN_DELIVERY_DIR/application.tfvars.json" -out="$ODYN_DELIVERY_DIR/application.tfplan" > "$ODYN_DELIVERY_DIR/plan.log" 2>&1
+          python scripts/delivery.py plan-infrastructure --directory "$ODYN_DELIVERY_DIR"
           python scripts/delivery.py seal --directory "$ODYN_DELIVERY_DIR"
       - name: Encrypt foundation plan diagnostics on failure
         if: failure()
