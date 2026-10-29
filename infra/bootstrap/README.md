@@ -16,3 +16,14 @@ operations contend on the state lease. Configure application roots with the
 private backend settings and `use_azuread_auth = true`. Treat state as
 sensitive: Terraform's `sensitive` marker redacts display but does not encrypt
 values inside state.
+
+The execution workflow adds and removes its temporary runner subnet rules on
+both state accounts. This root ignores changes to that subnet list so applying
+the foundation cannot disconnect its own runner. Terraform still controls the
+default-deny firewall, operator IP rules and public-access policy. Runner
+retirement must remove its subnet rules before deleting the execution network.
+
+Foundation planning checks the actual `tfstate` container through ARM. If the
+container is missing while old deployment history remains, it recreates only
+that template deployment. The saved-plan gate requires authenticated absence
+evidence and rejects replacement of any other resource.

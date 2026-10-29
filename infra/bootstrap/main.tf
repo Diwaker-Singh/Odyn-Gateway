@@ -68,6 +68,12 @@ resource "azurerm_storage_account" "state" {
     ip_rules                   = var.approved_ipv4_ranges
     virtual_network_subnet_ids = var.approved_subnet_ids
   }
+  # The execution pipeline owns short-lived runner subnet rules. Foundation
+  # reconciliation must preserve them while its own plan/apply uses the runner.
+  # Default-deny, public-access policy and operator IP rules remain Terraform-owned.
+  lifecycle {
+    ignore_changes = [network_rules[0].virtual_network_subnet_ids]
+  }
   blob_properties {
     versioning_enabled = true
     delete_retention_policy { days = 7 }
