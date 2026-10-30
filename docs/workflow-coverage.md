@@ -1,5 +1,8 @@
 # Workflow coverage and execution
 
+For the next consolidated cold-start validation, follow the
+[pipeline sufficiency validation roadmap](pipeline-validation-roadmap.md).
+
 CI and manual workflows exercise the repository tooling at the appropriate
 boundary. Interactive sign-in and secret entry remain operator tasks; running
 those unattended would change their security model. Destructive cleanup requires

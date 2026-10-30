@@ -11,7 +11,7 @@ const valid = {
 };
 
 test("demo UI uses a bounded but conversational response limit", () => {
-  assert.equal(MAX_RESPONSE_TOKENS, 1024);
+  assert.equal(MAX_RESPONSE_TOKENS, 2048);
 });
 
 test("accepts a tenant-scoped Entra client and HTTPS chat endpoint", () => {
