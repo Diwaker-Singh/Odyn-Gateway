@@ -61,12 +61,17 @@ def _report_cli_failure(args, status, stderr):
     label = " ".join(operation[:5]) or "command"
     known_codes = {
         "AuthorizationFailed",
+        "AuthenticationFailed",
         "BadRequest",
         "Conflict",
         "Forbidden",
+        "ForbiddenByConnection",
         "InvalidAuthenticationTokenTenant",
         "InvalidResourceReference",
+        "InvalidSubscriptionId",
+        "MissingSubscriptionRegistration",
         "NoRegisteredProviderFound",
+        "NoSubscriptionsFound",
         "NotFound",
         "OperationNotAllowed",
         "RequestDisallowedByPolicy",
@@ -78,10 +83,28 @@ def _report_cli_failure(args, status, stderr):
     }
     code = "unclassified"
     if stderr:
-        candidates = re.findall(r"\(([A-Za-z][A-Za-z0-9]+)\)", stderr)
+        # Azure CLI has emitted the same service error both as
+        # ``(AuthorizationFailed)`` and ``AuthorizationFailed:`` across CLI
+        # versions. Search only for exact allowlisted code tokens; never copy
+        # stderr into logs because it can contain resource IDs or credentials.
         code = next(
-            (candidate for candidate in candidates if candidate in known_codes), code
+            (
+                candidate
+                for candidate in sorted(known_codes, key=len, reverse=True)
+                if re.search(
+                    rf"(?<![A-Za-z0-9]){re.escape(candidate)}(?![A-Za-z0-9])", stderr
+                )
+            ),
+            code,
         )
+        if code == "unclassified":
+            lowered = stderr.casefold()
+            if "no subscriptions found" in lowered:
+                code = "NoSubscriptionsFound"
+            elif "not authorized" in lowered or "authorization failed" in lowered:
+                code = "AuthorizationFailed"
+            elif "forbidden" in lowered:
+                code = "Forbidden"
     print(
         f"Execution diagnostic: az {label} {status} (Azure error: {code}).",
         file=sys.stderr,
