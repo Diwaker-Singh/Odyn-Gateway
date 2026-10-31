@@ -83,6 +83,57 @@ class ExecutionTests(unittest.TestCase):
             M.run(["gh", "api", "private/path"])
         stderr.write.assert_not_called()
 
+    def test_azure_cli_plain_error_code_is_classified_safely(self):
+        secret = "private-token"
+        resource_id = "/subscriptions/private/resourceGroups/private-group"
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr=f"ERROR: AuthorizationFailed: {secret} {resource_id}",
+        )
+        with (
+            patch.object(M.subprocess, "run", return_value=completed),
+            patch("sys.stderr") as stderr,
+            self.assertRaises(RuntimeError),
+        ):
+            M.run(["az", "group", "exists", "-n", "private-group"])
+        diagnostic = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("AuthorizationFailed", diagnostic)
+        self.assertNotIn(secret, diagnostic)
+        self.assertNotIn(resource_id, diagnostic)
+
+    def test_azure_no_subscription_cli_message_has_safe_classification(self):
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="ERROR: No subscriptions found for the logged in account.",
+        )
+        with (
+            patch.object(M.subprocess, "run", return_value=completed),
+            patch("sys.stderr") as stderr,
+            self.assertRaises(RuntimeError),
+        ):
+            M.run(["az", "group", "exists", "-n", "rg-odyn-gateway-demo10"])
+        diagnostic = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("NoSubscriptionsFound", diagnostic)
+
+    def test_unknown_azure_error_remains_sanitized(self):
+        secret = "unapproved-error-body"
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=f"ERROR: {secret}"
+        )
+        with (
+            patch.object(M.subprocess, "run", return_value=completed),
+            patch("sys.stderr") as stderr,
+            self.assertRaises(RuntimeError),
+        ):
+            M.run(["az", "group", "exists", "-n", "private-group"])
+        diagnostic = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("unclassified", diagnostic)
+        self.assertNotIn(secret, diagnostic)
+
     def test_configuration_validates_before_writes(self):
         with patch.dict(os.environ, self.environment()):
             self.assertEqual(M.config(), self.config())
