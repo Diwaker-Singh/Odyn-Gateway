@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,6 +37,51 @@ class ExecutionTests(unittest.TestCase):
             "GITHUB_REF": "refs/heads/main",
             "ODYN_STATE_STORAGE_ACCOUNT_ID": "",
         }
+
+    def test_azure_failure_diagnostic_identifies_operation_without_raw_error_data(self):
+        secret = "do-not-log-this-token"
+        resource_id = "/subscriptions/private/resourceGroups/private-group"
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr=(
+                f"ERROR: (AuthorizationFailed) {secret} {resource_id}; not authorized."
+            ),
+        )
+        with (
+            patch.object(M.subprocess, "run", return_value=completed),
+            patch("sys.stderr") as stderr,
+            self.assertRaises(RuntimeError),
+        ):
+            M.run(
+                [
+                    "az",
+                    "network",
+                    "vnet",
+                    "peering",
+                    "list",
+                    "-g",
+                    "private-group",
+                ]
+            )
+        diagnostic = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("az network vnet peering list failed", diagnostic)
+        self.assertIn("AuthorizationFailed", diagnostic)
+        self.assertNotIn(secret, diagnostic)
+        self.assertNotIn(resource_id, diagnostic)
+
+    def test_non_azure_cli_failure_does_not_echo_command_or_error(self):
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="sensitive detail"
+        )
+        with (
+            patch.object(M.subprocess, "run", return_value=completed),
+            patch("sys.stderr") as stderr,
+            self.assertRaises(RuntimeError),
+        ):
+            M.run(["gh", "api", "private/path"])
+        stderr.write.assert_not_called()
 
     def test_configuration_validates_before_writes(self):
         with patch.dict(os.environ, self.environment()):

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -28,12 +29,64 @@ ROLES = {
 
 
 def run(args, payload=None):
-    result = subprocess.run(
-        args, input=payload, capture_output=True, text=True, timeout=900, check=False
-    )
+    try:
+        result = subprocess.run(
+            args,
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _report_cli_failure(args, "timed out", None)
+        raise RuntimeError(
+            "Execution operation failed; inspect protected diagnostics"
+        ) from None
     if result.returncode:
-        raise RuntimeError("Execution operation failed; inspect Azure privately")
+        _report_cli_failure(args, "failed", result.stderr)
+        raise RuntimeError("Execution operation failed; inspect protected diagnostics")
     return result.stdout.strip()
+
+
+def _report_cli_failure(args, status, stderr):
+    """Log only an allowlisted operation label and Azure error code, never raw stderr."""
+    if not args or args[0] != "az":
+        return
+    operation = []
+    for argument in args[1:]:
+        if argument.startswith("-"):
+            break
+        operation.append(argument)
+    label = " ".join(operation[:5]) or "command"
+    known_codes = {
+        "AuthorizationFailed",
+        "BadRequest",
+        "Conflict",
+        "Forbidden",
+        "InvalidAuthenticationTokenTenant",
+        "InvalidResourceReference",
+        "NoRegisteredProviderFound",
+        "NotFound",
+        "OperationNotAllowed",
+        "RequestDisallowedByPolicy",
+        "ResourceGroupNotFound",
+        "ResourceNotFound",
+        "ScopeLocked",
+        "SubscriptionNotFound",
+        "SubscriptionNotRegistered",
+    }
+    code = "unclassified"
+    if stderr:
+        candidates = re.findall(r"\\(([A-Za-z][A-Za-z0-9]+)\\)", stderr)
+        code = next(
+            (candidate for candidate in candidates if candidate in known_codes), code
+        )
+    print(
+        f"Execution diagnostic: az {label} {status} (Azure error: {code}).",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def az(*args):
