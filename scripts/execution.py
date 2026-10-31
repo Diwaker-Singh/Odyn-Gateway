@@ -78,7 +78,7 @@ def _report_cli_failure(args, status, stderr):
     }
     code = "unclassified"
     if stderr:
-        candidates = re.findall(r"\\(([A-Za-z][A-Za-z0-9]+)\\)", stderr)
+        candidates = re.findall(r"\(([A-Za-z][A-Za-z0-9]+)\)", stderr)
         code = next(
             (candidate for candidate in candidates if candidate in known_codes), code
         )
